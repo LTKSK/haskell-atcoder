@@ -13,6 +13,7 @@ intwo =
         [x, y] -> return (x,y)
         _ -> error "引数足りない"
 
+
 main :: IO ()
 main = do
     s <- BS.getLine
