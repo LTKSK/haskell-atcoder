@@ -16,4 +16,8 @@ intwo =
 
 main :: IO ()
 main = do
-    putStrLn ""
+    (n,k) <- intwo
+    ps <- ints
+    qs <- ints
+    let res = length [() | p <- ps, q <- qs, q+p==k]
+    putStrLn $ if res > 0 then "Yes" else "No"
