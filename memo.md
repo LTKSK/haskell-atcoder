@@ -2,6 +2,9 @@
 
 - pyenvで3.11.9のvenv作る
 - activateして、pip install online-judge-tools 
+- oj-setup.sh {問題のURL}
+- ojth（自前alias）でtest
+- ojs でsubmit
 
 # memo
 

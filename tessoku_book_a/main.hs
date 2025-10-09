@@ -16,4 +16,5 @@ intwo =
 
 main :: IO ()
 main = do
-    putStr ""
+    [n] <- ints
+    print (n * n)
