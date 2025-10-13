@@ -3,7 +3,7 @@
 import Data.Char (digitToInt, isSpace)
 import Data.List (sort, isSuffixOf, isPrefixOf, unfoldr)
 import Data.Set(fromList, toList)
-import Control.Monad (replicateM, msum)
+import Control.Monad (replicateM, msum, forM_)
 import Control.Monad.RWS (MonadState(put))
 import qualified Data.ByteString.Char8 as BS
 import Data.Ix
