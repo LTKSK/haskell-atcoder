@@ -25,4 +25,4 @@ getMatInt h w = listArray ((0,0), (h-1, w-1)) . concat <$> replicateM h ints
 main :: IO ()
 main = do
 
-    putStrLn ""
+    print ""

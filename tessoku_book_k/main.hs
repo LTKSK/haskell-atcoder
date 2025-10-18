@@ -35,5 +35,6 @@ main :: IO ()
 main = do
     [n,x] <- ints
     as <- ints
-    let as' = listArray @UArray (0, n-1) as
-    print $ bisect (\i -> (as' ! i) <= x) 0 n +1
+    let as' = listArray @UArray (1, n) as
+    -- okに入れるのは条件でokになる側
+    print $ bisect (\i -> (as' ! i) >= x) n 0
