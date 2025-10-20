@@ -33,4 +33,8 @@ bisect f ok ng
 
 main :: IO ()
 main = do
-    print ""
+    [n,k] <- ints
+    as <- ints
+    let res = bisect (\t -> (sum $ map (\a -> t `div` a) as) >= k) 1000000000 0
+
+    print res
