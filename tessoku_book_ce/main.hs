@@ -32,4 +32,23 @@ binSearch f ok ng
 
 main :: IO ()
 main = do
-    print ""
+    [n] <- ints
+    as <- ints
+    [q] <- ints
+    lrs <- replicateM q ints
+
+    let pairs = scanl (\(win,lose) a -> if a == 1 then (win+1, lose) else (win, lose+1) ) (0,0) as :: [(Int, Int)]
+        arr = listArray (0, n) pairs :: Array Int (Int, Int)
+
+    forM_ lrs $ \[l,r] -> do
+        let (lw,ll) = arr ! (l-1)
+            (rw,rl) = arr ! r
+            lsub = rl - ll
+            wsub = rw - lw
+        putStrLn $ if lsub > wsub
+            then
+                "lose"
+            else
+                if lsub < wsub
+                    then "win"
+                    else "draw"

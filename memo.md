@@ -17,6 +17,8 @@
 - boundsで添え字の範囲を確認
 - elems で一つの配列にした結果が見れる
 - assocsでは添え字と値が確認できる
+- listArray (1, n) のようにすると添え字を1basedにできる
+- UArrayはプリミティブ型じゃないとダメ。タプルとかはArrayに入れる
 
 ## パターンマッチ的な構文覚える
 
@@ -27,3 +29,9 @@ resolve n
   | odd n = ...
   | otherwise = ...
 ```
+
+## enumerate
+
+```haskell
+zip [0..] arr
+-- [(i, v)]
