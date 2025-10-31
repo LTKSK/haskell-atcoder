@@ -24,6 +24,13 @@ getMatInt :: Int -> Int -> IO (UArray (Int, Int) Int)
 -- concatで多次元配列を1次元配列に
 getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h ints
 
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
   | abs (ok - ng) <= 1 = ok
@@ -33,13 +40,22 @@ binSearch f ok ng
             then binSearch f mid ng -- 条件を満たすならmidをokに
             else binSearch f ok mid -- 逆はngをmidに
 
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
+safeIndexOp :: [Bool] -> Int -> Bool
+safeIndexOp arr a
+  | a >= 0 = arr !! a
+  | otherwise = False
 
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
+(!!!) = safeIndexOp
+
+step :: [Bool] -> Int -> [Bool]
+step dpI cardVal = do
+  j <- [0 .. (length dpI - 1)]
+  return $ (dpI !!! j) || (dpI !!! (j - cardVal))
 
 main :: IO ()
 main = do
-  print ""
+  [n, s] <- ints
+  as <- ints
+  let dp0 = True : replicate s False
+      dp = foldl step dp0 as
+   in printYn $ last dp
