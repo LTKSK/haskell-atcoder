@@ -33,6 +33,25 @@ binSearch f ok ng
             then binSearch f mid ng -- 条件を満たすならmidをokに
             else binSearch f ok mid -- 逆はngをmidに
 
+-- fを満たす最小の値を探す
+-- leftは探索範囲の左側で、答えの値を含まない。rightは右側で含む
+binSearchMin :: (Integral t) => (t -> Bool) -> t -> t -> t
+binSearchMin f !left !right
+  | right - left == 1 = right
+  | f mid = binSearchMin f left mid
+  | otherwise = binSearchMin f mid right
+  where
+    mid = left + (right - left) `div` 2
+
+binSearchMax :: (Integral t) => (t -> Bool) -> t -> t -> t
+binSearchMax f !left !right
+  | right - left == 1 = left
+  -- binSearchMinと↑の条件は同じ。fがTrueだったらleftをあげていく
+  | f mid = binSearchMax f mid right
+  | otherwise = binSearchMax f left mid
+  where
+    mid = left + (right - left) `div` 2
+
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
