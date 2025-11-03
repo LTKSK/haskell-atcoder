@@ -2,4 +2,7 @@
   "github.copilot.enable": {
     "*": false,
   },
+  "haskell.serverEnvironment": {
+    "GHC_ENVIRONMENT": "/home/ltksk/.ghc/x86_64-linux-9.6.7/environments/default"
+  }
 }
