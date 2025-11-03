@@ -90,6 +90,7 @@ main = do
             | i <- [0 .. n - 1],
               let na = as ! i,
               let nb = bs ! i,
+              -- as[j] - as[i] > aを変形すると↓
               let ja = binSearchMin (\j -> (as ! j) >= na + a) i (n + 1),
               let jb = binSearchMax (\j -> (bs ! j) < nb + b) i (n + 1),
               ja /= n + 1
