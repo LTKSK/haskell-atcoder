@@ -4,6 +4,8 @@ import Control.Monad (forM_, msum, replicateM)
 import Control.Monad.RWS (MonadState (put))
 import Data.Array (Array)
 import Data.Array.IArray
+import Data.Array.ST
+import Data.Array.Unboxed
 import Data.Array.Unboxed (UArray)
 import Data.ByteString.Char8 qualified as BS
 import Data.Char (digitToInt, isSpace)

@@ -85,6 +85,7 @@ blockDp blocks n = dp
       where
         score i
           -- 取った個数の算出。piが残った区間の範囲に入っているなら取得できる
+          -- l,rを1basedにしておくとここでの計算が楽っぽいな
           | l <= p i && p i <= r = a i
           | otherwise = 0
         leftScore = score (l - 1) + dp ! (l - 1, r)

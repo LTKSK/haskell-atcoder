@@ -44,7 +44,7 @@ resolve n
 ```haskell
 zip [0..] arr
 -- [(i, v)]
-
+```
 ## dp
 
 Haskellで戦う競技プログラミングを参考に、  
@@ -57,6 +57,7 @@ Haskellで戦う競技プログラミングを参考に、
 - 末尾再帰の場合
   - そもそも途中の結果はなくとも、最後の2つの計算結果が分かればよい
 - 2つ前の要素と現在の要素の演算で、indexを操作するのではなく、zipで同じ配列をずらしてくっつけて実現できるのが面白い
+
 ```haskell
 zip3 arr (tail arr) (tail $ tail arr)
 ```
@@ -74,12 +75,17 @@ zip3 arr (tail arr) (tail $ tail arr)
     - これが漸化式
     - A[i]を選んだ場合と選ばなかった場合のいずれか
 
+### 区間DP
+
+- 計算量はO(N^2)
+- 区間l,rで定まる範囲を単位として、l,rを広げたり狭めたりした際の最適解を求める
+
 ## List
 
 ### Listモナドとdo記法
 
 doの中で
-```
+```haskell
 do
   v <- [0..(length arr)]
   return v
