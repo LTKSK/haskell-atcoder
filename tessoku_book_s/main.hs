@@ -11,7 +11,6 @@ import Data.Ix
 import Data.List (isPrefixOf, isSuffixOf, sort, unfoldr)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
-import Text.Parsec (updateState)
 
 ints :: IO [Int]
 ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine

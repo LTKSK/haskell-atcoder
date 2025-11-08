@@ -64,6 +64,48 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+solve' :: [Int] -> Int
+solve' as = Seq.length $ foldl' step Seq.empty as
+  where
+    step tail x
+      | Seq.null tail || x > Seq.index tail (Seq.length tail - 1) = tail Seq.|> x
+      | otherwise =
+          let pos = binarySearch tail x
+           in Seq.update pos x tail
+
+    binarySearch tail x = go 0 (Seq.length tail)
+      where
+        go l r
+          | l >= r = l
+          | Seq.index tail mid < x = go (mid + 1) r
+          | otherwise = go l mid
+          where
+            mid = (l + r) `div` 2
+
+solve :: [Int] -> Int
+solve as = Seq.length $ foldl' step Seq.empty as
+  where
+    step tail x
+      -- Seqが空またはtailの末尾の値より大きい
+      | Seq.null tail || x > Seq.index tail (Seq.length tail - 1) =
+          tail Seq.|> x
+      | otherwise =
+          let pos = binarySearch tail x
+           in Seq.update pos x tail
+
+    binarySearch tail x = go 0 (Seq.length tail)
+      where
+        go l r
+          | l >= r = l
+          -- ここではtailの中でx以上の値の最小のindex（lowebBound）を探している
+          -- 条件が逆に見えるけど、x未満ならmidは探索範囲から消える
+          | Seq.index tail mid < x = go (mid + 1) r
+          | otherwise = go l mid
+          where
+            mid = (l + r) `div` 2
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  as <- ints
+  print $ solve as

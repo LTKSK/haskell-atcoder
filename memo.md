@@ -126,3 +126,8 @@ Pythonで見慣れたあいつ
 
 - 尺取り
 - 二分探索
+
+## lowerBoundとupperBoundどっちがどっち
+
+- lowerはx以上の最小のindex
+- upperはx以下の最大のindex
