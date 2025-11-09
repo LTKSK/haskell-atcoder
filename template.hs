@@ -76,6 +76,7 @@ binSearchMax f !left !right
   where
     mid = left + (right - left) `div` 2
 
+-- エラトステネスの篩
 sieve :: Int -> UArray Int Bool
 sieve n = runSTUArray $ do
   arr <- newArray (0, n) True
@@ -91,6 +92,13 @@ sieve n = runSTUArray $ do
         writeArray arr j False
   return arr
 
+-- 高速べき乗
+powMod :: Int -> Int -> Int -> Int
+powMod a b m
+  | b == 0 = 1
+  | even b = powMod ((a * a) `mod` m) (b `div` 2) m
+  | otherwise = (a * powMod a (b - 1) m) `mod` m
+
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
@@ -100,5 +108,4 @@ printYn = putStrLn . yn
 
 main :: IO ()
 main = do
-  test <- intsN 3
-  print test
+  print ""
