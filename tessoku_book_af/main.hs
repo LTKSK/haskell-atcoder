@@ -106,6 +106,18 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+solve :: Int -> Int -> Int -> Array Int Bool
+solve n a b = dp
+  where
+    dp = listArray (0, n) (map step [0 .. n])
+    step i
+      -- 勝ちと負けを順に遷移していくイメージ
+      | i >= a && not (dp ! (i - a)) = True
+      | i >= b && not (dp ! (i - b)) = True
+      | otherwise = False -- 残りの石がa個,b個いずれも足りない
+
 main :: IO ()
 main = do
-  print ""
+  [n, a, b] <- ints
+  let dp = solve n a b
+  putStrLn $ if dp ! n then "First" else "Second"
