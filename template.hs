@@ -20,14 +20,33 @@ import Data.Vector.Unboxed qualified as VU
 ints :: IO [Int]
 ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
+-- 数字が複数行入った時
+intsN :: Int -> IO [Int]
+intsN n = map head <$> replicateM n ints
+
 intwo =
   ints >>= \case
     [x, y] -> return (x, y)
     _ -> error "引数足りない"
 
+-- A 13 のような入力をparse
+charInt :: IO (Char, Int)
+charInt = do
+  line <- BS.getLine
+  let ws = BS.words line
+  case ws of
+    [c, n] -> case BS.readInt n of
+      Just (num, _) -> return (BS.head c, num)
+      Nothing -> error "数字のパースに失敗"
+    _ -> error "フォーマットが違う"
+
 getMatInt :: Int -> Int -> IO (UArray (Int, Int) Int)
 -- concatで多次元配列を1次元配列に
 getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h ints
+
+getMatChar :: Int -> Int -> IO (UArray (Int, Int) Char)
+-- concatで多次元配列を1次元配列に
+getMatChar h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
 
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
@@ -66,4 +85,5 @@ printYn = putStrLn . yn
 
 main :: IO ()
 main = do
-  print ""
+  test <- intsN 3
+  print test
