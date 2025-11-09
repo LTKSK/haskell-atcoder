@@ -76,6 +76,21 @@ binSearchMax f !left !right
   where
     mid = left + (right - left) `div` 2
 
+sieve :: Int -> UArray Int Bool
+sieve n = runSTUArray $ do
+  arr <- newArray (0, n) True
+  writeArray arr 0 False
+  writeArray arr 1 False
+  -- Intそのままだと通らないのでfromIntegralを通す
+  forM_ [2 .. floor $ sqrt $ fromIntegral n] $ \i -> do
+    isPrime <- readArray arr i
+    when isPrime $
+      -- iの倍数を列挙する。haskellのlist記法は開始の値,次の値を記載できて、その差が増分になる
+      -- 例 [5, 8..50] -> [5,8,11,14,17,20,23,26,29,32,35,38,41,44,47,50]
+      forM_ [i * i, i * i + i .. n] $ \j ->
+        writeArray arr j False
+  return arr
+
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
