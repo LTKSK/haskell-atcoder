@@ -1,8 +1,4 @@
--- !で正格評価を強制
-{-# LANGUAGE BangPatterns #-}
--- \case -> が書けるようになる
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
 import Control.Monad (forM_, msum, replicateM, when)
 import Control.Monad.RWS (MonadState (put))
@@ -10,12 +6,12 @@ import Data.Array (Array)
 import Data.Array.IArray
 import Data.Array.ST
 import Data.Array.Unboxed
+import Data.Array.Unboxed (UArray)
 import Data.Bits
 import Data.ByteString.Char8 qualified as BS
 import Data.Char (digitToInt, isSpace)
-import Data.Int (Int64)
 import Data.Ix
-import Data.List (foldl', isPrefixOf, isSuffixOf, sort, sortBy, sortOn, unfoldr)
+import Data.List (foldl', isPrefixOf, isSuffixOf, sort, sortOn, unfoldr)
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -104,15 +100,6 @@ powMod a b m
   | even b = powMod ((a * a) `mod` m) (b `div` 2) m
   | otherwise = (a * powMod a (b - 1) m) `mod` m
 
--- もじゅーら計算
-modulus :: Int64
-modulus = 1_000_000_007
-
-addMod, subMod, mulMod :: Int64 -> Int64 -> Int64
-addMod x y = (x + y) `mod` modulus
-subMod x y = (x - y) `mod` modulus
-mulMod x y = (x * y) `mod` modulus
-
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
@@ -124,4 +111,10 @@ main :: IO ()
 main = do
   [n] <- ints
   lrs <- replicateM n ints
-  print ""
+  let lrs' = sortOn (\[l, r] -> r) lrs
+      (res, _) = foldl' step (0, 0) lrs'
+      step :: (Int, Int) -> [Int] -> (Int, Int)
+      step (!acc, !lastEnd) [l, r]
+        | l >= lastEnd = (acc + 1, r)
+        | otherwise = (acc, lastEnd)
+  print res

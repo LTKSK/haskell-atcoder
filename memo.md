@@ -74,6 +74,8 @@ zip3 arr (tail arr) (tail $ tail arr)
   - dp[i+1][j] = dp[i][j] or dp[i][j-A[i]]
     - これが漸化式
     - A[i]を選んだ場合と選ばなかった場合のいずれか
+- dp_c
+  - 3つからいずれか、というのを1~3でdpの状態として考える
 
 ### 区間DP
 
@@ -88,6 +90,37 @@ zip3 arr (tail arr) (tail $ tail arr)
   - 最後の状態が不定（全部選べるかわからんとか）だと貰うはやりづらいまたはできない印象
 - 現在の状態から遷移可能な状態を更新していくものは配る
   - すごろくとか
+
+### 分類メモ
+
+```haskell
+-- 1. 可換で独立 → fold
+foldl' (+) 0 xs
+foldl' max minBound xs
+
+-- 2. 前の状態だけ必要 → タプルで持ち回り
+foldl' (\(a, b) x -> (b, a + b)) (0, 1) [1..n]
+
+-- 3. 2次元DP → Array
+dp = listArray ((0,0), (n,m)) [step i j | i<-[0..n], j<-[0..m]]
+
+-- 4. 疎な状態 → Map
+dp = M.fromList [...]
+```
+
+```haskell
+1. 「前の結果だけ必要？」
+   Yes → foldl'
+   No  → 次へ
+
+2. 「状態数は小さい？（< 10^6）」
+   Yes → Array
+   No  → Map
+
+3. 「順序が重要？」
+   Yes → STArray or foldl'
+   No  → どれでもOK
+```
 
 ## List
 
