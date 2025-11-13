@@ -114,10 +114,6 @@ addMod x y = (x + y) `mod` modulus
 subMod x y = (x - y) `mod` modulus
 mulMod x y = (x * y) `mod` modulus
 
--- combination
-comb :: Int -> Int -> Int
-comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
-
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
@@ -125,6 +121,14 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+-- combination
+comb :: Int -> Int -> Int
+comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  as <- ints
+  let m = IM.fromListWith (+) $ map (,1) as
+      res = IM.foldl' (\acc v -> acc + comb v 3) 0 m
+  print res
