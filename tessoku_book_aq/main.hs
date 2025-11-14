@@ -137,4 +137,12 @@ printYn = putStrLn . yn
 
 main :: IO ()
 main = do
-  print ""
+  [n, l] <- ints
+  abs <- replicateM n intChar
+  print $
+    maximum
+      [ case b of
+          'E' -> l - a
+          'W' -> a
+        | (a, b) <- abs
+      ]
