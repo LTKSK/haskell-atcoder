@@ -16,7 +16,7 @@ import Data.Char (digitToInt, isSpace)
 import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
 import Data.Ix
-import Data.List (foldl', isPrefixOf, isSuffixOf, sort, sortBy, sortOn, unfoldr)
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -24,7 +24,7 @@ import Data.Vector.Unboxed qualified as VU
 import Debug.Trace
 
 ints :: IO [Int]
-ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
 -- 数字が複数行入った時
 intsN :: Int -> IO [Int]
