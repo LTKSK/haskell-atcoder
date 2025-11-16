@@ -138,12 +138,17 @@ printYn = putStrLn . yn
 main :: IO ()
 main = do
   [x] <- ints
-  let s = L.group $ L.sort $ show x
-      s' =
-        if head (head s) == '0'
-          then
-            if length (s !! 1) > 1
-              then [head (s !! 1)] ++ head s ++ tail (s !! 1) ++ concat (L.tail (L.tail s))
-              else s !! 1 ++ head s ++ concat (L.tail (L.tail s))
-          else concat s
-  putStrLn s'
+  -- let s = L.group $ L.sort $ show x
+  --     s' =
+  --       if head (head s) == '0'
+  --         then
+  --           if length (s !! 1) > 1
+  --             then [head (s !! 1)] ++ head s ++ tail (s !! 1) ++ concat (L.tail (L.tail s))
+  --             else s !! 1 ++ head s ++ concat (L.tail (L.tail s))
+  --         else concat s
+  -- putStrLn s'
+  let sorted = L.sort $ show x
+      (zs, nzs) = L.partition (== '0') sorted
+  case nzs of
+    [] -> error "unreachable"
+    (nz : rem) -> putStrLn $ nz : zs ++ rem

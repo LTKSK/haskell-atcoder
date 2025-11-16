@@ -138,6 +138,7 @@ printYn = putStrLn . yn
 main :: IO ()
 main = do
   [a, b, c] <- ints
-  let sorted = L.reverse $ L.sort [a, b, c]
-      sorted' = map show sorted
-  putStrLn $ head sorted' ++ (sorted' !! 1) ++ (sorted' !! 2)
+  -- let sorted = L.reverse $ L.sort [a, b, c]
+  --     sorted' = map show sorted
+  -- putStrLn $ head sorted' ++ (sorted' !! 1) ++ (sorted' !! 2)
+  putStrLn $ concatMap show $ reverse $ L.sort [a, b, c]
