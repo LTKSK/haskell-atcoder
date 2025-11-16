@@ -106,6 +106,11 @@ sieve n = runSTUArray $ do
     isPrime <- readArray arr i
     when isPrime $
       -- iの倍数を列挙する。haskellのlist記法は開始の値,次の値を記載できて、その差が増分になる
+      -- iの倍数を列挙する。haskellのlist記法は開始の値,次の値を記載できて、その差が増分になる
+      -- 例 [5, 8..50] -> [5,8,11,14,17,20,23,26,29,32,35,38,41,44,47,50]
+      -- 例 [5, 8..50] -> [5,8,11,14,17,20,23,26,29,32,35,38,41,44,47,50]
+
+      -- iの倍数を列挙する。haskellのlist記法は開始の値,次の値を記載できて、その差が増分になる
       -- 例 [5, 8..50] -> [5,8,11,14,17,20,23,26,29,32,35,38,41,44,47,50]
       forM_ [i * i, i * i + i .. n] $ \j ->
         writeArray arr j False
@@ -140,4 +145,33 @@ printYn = putStrLn . yn
 
 main :: IO ()
 main = do
-  print ""
+  [n, x, y] <- ints
+  as <- ints
+  -- 全探索
+  -- aiにおいて、飴x,yを取得した時の個数と結果をtupleで保持する
+  -- let s = [[(x', y', x * x' + y * y') | x' <- [0 .. a], let y' = x - x'] | a <- as]
+  -- 計算が重すぎる...全探索じゃないっぽい
+
+  -- ありえる最大値だから、mina*yの値に揃えるのが一番大きくなる、かも？
+  -- maxa * x < mina *y
+  -- let d = y - x
+  --     maxa = maximum as
+  --     mina = minimum as
+  --     my = mina * y
+  --     -- 全部のaが大きな飴を取ったと仮定して、最大との差分があるはず
+  --     -- 例えばaが5,7で、yが5なら25,35。その差は10。これを、y-xで割って、その個数分だけ大きな飴から引く
+  --     r =
+  --       sum
+  --         [c | a' <- as, let diffa = a' * y - my, let c | a' == mina = a' | diffa `mod` d /= 0 = minBound | otherwise = a' - diffa `div` d]
+  -- print $ if r <= 0 then -1 else r
+
+  let ma = y * minimum as
+      mi = x * maximum as
+      res =
+        sum <$> sequence do
+          a <- as
+          return
+            if mi <= ma && (ma - a * x) `mod` (y - x) == 0
+              then Just $ (ma - a * x) `div` (y - x)
+              else Nothing
+  print $ fromMaybe (-1) res
