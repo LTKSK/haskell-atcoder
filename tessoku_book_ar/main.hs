@@ -155,22 +155,37 @@ main = do
       '2' -> Reverse
       '3' -> Print (read rest)
 
-  let getIdx rev x = if rev then n - x + 1 else x
-      results = runST $ do
-        arr <- newListArray (1, n) [1 .. n] :: ST s (STUArray s Int Int)
-        -- revがtrueの時は参照先を置き換える
-        foldM
-          ( \(acc, rev) q -> case q of
-              Replace x y -> do
-                writeArray arr (getIdx rev x) y
-                return (acc, rev)
-              -- flagをひっくり返すだけ
-              Reverse ->
-                return (acc, not rev)
-              Print x -> do
-                val <- readArray arr (getIdx rev x)
-                return (val : acc, rev)
-          )
-          ([], False)
-          queries
-  mapM_ print $ (reverse . fst) results
+  -- let getIdx rev x = if rev then n - x + 1 else x
+  --     results = runST $ do
+  --       arr <- newListArray (1, n) [1 .. n] :: ST s (STUArray s Int Int)
+  --       -- revがtrueの時は参照先を置き換える
+  --       foldM
+  --         ( \(acc, rev) q -> case q of
+  --             Replace x y -> do
+  --               writeArray arr (getIdx rev x) y
+  --               return (acc, rev)
+  --             -- flagをひっくり返すだけ
+  --             Reverse ->
+  --               return (acc, not rev)
+  --             Print x -> do
+  --               val <- readArray arr (getIdx rev x)
+  --               return (val : acc, rev)
+  --         )
+  --         ([], False)
+  --         queries
+  -- mapM_ print $ (reverse . fst) results
+  let res = L.foldl' step init queries
+      init = ([], False, IM.fromList $ map (\i -> (i, i)) [1 .. n])
+      step (!acc, !rev, !im) (Replace i v) = (acc, rev, IM.insert i' v im)
+        where
+          i'
+            | rev = n + 1 - i
+            | otherwise = i
+      step (!acc, !rev, !im) Reverse = (acc, not rev, im)
+      step (!acc, !rev, !im) (Print i) = (im IM.! i' : acc, rev, im)
+        where
+          i'
+            | rev = n + 1 - i
+            | otherwise = i
+      fst3 (x, _, _) = x
+  mapM_ print $ reverse $ fst3 res
