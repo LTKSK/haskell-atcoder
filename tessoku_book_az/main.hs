@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
-import Control.Monad (foldM, forM_, msum, replicateM, when)
+import Control.Monad (foldM, foldM_, forM_, msum, replicateM, when)
 import Control.Monad.RWS (MonadState (put))
 import Data.Array (Array)
 import Data.Array.IArray
@@ -142,5 +142,17 @@ main :: IO ()
 main = do
   [q] <- ints
   qs <- replicateM q $ words <$> getLine
-
-  print qs
+  foldM_
+    ( \acc q -> case q of
+        ["1", s] -> do
+          return $ acc Seq.|> s
+        ["2"] -> do
+          let x Seq.:< _ = Seq.viewl acc
+          putStrLn x
+          return acc
+        ["3"] -> do
+          let _ Seq.:< acc' = Seq.viewl acc
+          return acc'
+    )
+    Seq.empty
+    qs
