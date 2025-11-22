@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
-import Control.Monad (foldM, foldM_, forM_, msum, replicateM, unless, when)
+import Control.Monad (foldM, foldM_, forM_, msum, replicateM, replicateM_, unless, when)
 import Control.Monad.RWS (MonadState (put))
 import Data.Array (Array)
 import Data.Array.IArray
@@ -136,6 +136,13 @@ mulMod x y = (x * y) `mod` modulus
 comb :: Int -> Int -> Int
 comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
 
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
 -- buildDoubling n next: n要素、next!iが要素iの次の要素
 buildDoubling :: Int -> Array Int Int -> Int -> Array (Int, Int) Int
 buildDoubling n next maxK = dp
@@ -155,13 +162,30 @@ queryDoubling dp start k = foldl move start [0 .. maxK]
       | testBit k bit = dp ! (bit, pos)
       | otherwise = pos
 
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
-
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
-
 main :: IO ()
 main = do
-  print ""
+  [n, q] <- ints
+  as <- ints
+  -- 2^30 が大体10億を超えるので、今回のyの制約10^9には足りる
+  -- dp[2^i日後][今いる穴]=移動先
+  let dp = listArray ((0, 1), (29, n)) [step k i | k <- [0 .. 29], i <- [1 .. n]] :: Array (Int, Int) Int
+      as' = listArray @UArray (1, n) as
+      step :: Int -> Int -> Int
+      step 0 i = as' ! i -- 1回目の移動先はa_i
+      step k i =
+        -- k_iをk_{i-1}から求める2^k_i = 2^{k_i-1} + 2^{k_i-1}
+        let mid = dp ! (k - 1, i)
+         in dp ! (k - 1, mid)
+
+      query dp start k = foldl move start [0 .. maxK]
+        where
+          ((_, _), (maxK, _)) = bounds dp
+          move pos bit
+            -- kのbitが1の時だけ値を取得すればよい。bitが0..maxK
+            | testBit k bit = dp ! (bit, pos)
+            -- それ以外はそのまま
+            | otherwise = pos
+
+  replicateM_ q $ do
+    [x, y] <- ints
+    print $ query dp x y
