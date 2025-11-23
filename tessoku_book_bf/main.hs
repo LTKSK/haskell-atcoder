@@ -27,6 +27,7 @@ import Data.Set qualified as S
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
+import GHC.IO.Device (IODevice (devType))
 
 -- デバッグ用
 dbg :: (Show a) => a -> ()
@@ -163,6 +164,79 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+data SegTree a = SegTree
+  { stVec :: !(VU.Vector a),
+    stN :: !Int,
+    stOp :: !(a -> a -> a),
+    stE :: !a
+  }
+
+buildSegTree :: (VUM.Unbox a) => a -> Int -> IO (VUM.IOVector a)
+buildSegTree e n = VUM.replicate (n * 2) e
+
+-- 一点更新
+updateSegTree ::
+  (VUM.Unbox a) =>
+  (a -> a -> a) -> -- 演算
+  VUM.IOVector a -> -- 木
+  Int -> -- n (要素数)
+  Int -> -- i (0-indexed)
+  a -> -- 新しい値
+  IO ()
+updateSegTree op vec n i x = do
+  let !pos = n + i
+  VUM.write vec pos x
+  updateParent (pos `div` 2)
+  where
+    updateParent !p
+      | p < 1 = return ()
+      | otherwise = do
+          l <- VUM.read vec (2 * p)
+          r <- VUM.read vec (2 * p + 1)
+          VUM.write vec p (op l r)
+          updateParent (p `div` 2)
+
+-- 区間クエリ [l, r)
+querySegTree ::
+  (VUM.Unbox a) =>
+  (a -> a -> a) -> -- 演算
+  a -> -- 単位元
+  VUM.IOVector a -> -- 木
+  Int -> -- n (要素数)
+  Int -> -- l (0-indexed)
+  Int -> -- r (0-indexed, 含まない)
+  IO a
+querySegTree op e vec n l r = go (l + n) (r + n) e
+  where
+    go !l' !r' !acc
+      | l' >= r' = return acc
+      | otherwise = do
+          acc1 <-
+            -- 奇数であれば右の子であるのでその値を採用する
+            if odd l'
+              then op acc <$> VUM.read vec l'
+              -- そうでなければ親の値を使う。偶数の場合右に兄弟ノードがあるため、その値を含めないと正しい値が分からない
+              else return acc
+          acc2 <-
+            if odd r'
+              -- queryは半開区間[)なので-1でr'を含まないようにする
+              then op acc1 <$> VUM.read vec (r' - 1)
+              else return acc1
+          -- lが奇数である場合は値を参照したので、親の兄弟に遷移したい（木で見ると右上の親）
+          -- 子iの親はi/2+1。divは切り捨てなのでl'+1を2で割っても同じ計算。5`div`2+1==6`div`2
+          -- rは偶奇に関わらず親に向かう。rは含まれない範囲
+          go ((l' + 1) `div` 2) (r' `div` 2) acc2
+
 main :: IO ()
 main = do
-  print ""
+  [n, q] <- ints
+
+  vec <- buildSegTree 0 n
+  replicateM_ q $ do
+    query <- ints
+    case query of
+      [1, pos, x] -> updateSegTree max vec n (pos - 1) x
+      [2, l, r] -> do
+        val <- querySegTree max 0 vec n (l - 1) (r - 1)
+        print val
+      _ -> return ()
