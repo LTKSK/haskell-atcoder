@@ -156,6 +156,13 @@ queryDoubling dp start k = foldl move start [0 .. maxK]
       | testBit k bit = dp ! (bit, pos)
       | otherwise = pos
 
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
 buildSegTree :: (VUM.Unbox a) => a -> Int -> IO (VUM.IOVector a)
 buildSegTree e n = VUM.replicate (n * 2) e
 
@@ -212,13 +219,16 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
           -- rは偶奇に関わらず親に向かう。rは含まれない範囲
           go ((l' + 1) `div` 2) (r' `div` 2) acc2
 
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
-
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
-
 main :: IO ()
 main = do
-  print ""
+  [n, q] <- ints
+  vec <- buildSegTree 0 n
+  replicateM_ q $ do
+    query <- ints
+    case query of
+      [1, pos, x] -> do
+        updateSegTree (+) vec n (pos - 1) x
+      [2, l, r] -> do
+        res <- querySegTree (+) 0 vec n (l - 1) (r - 1)
+        print res
+      _ -> error "unreachable"
