@@ -214,6 +214,21 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
           -- rは偶奇に関わらず親に向かう。rは含まれない範囲
           go ((l' + 1) `div` 2) (r' `div` 2) acc2
 
+buildGraph :: (Int, Int) -> [[Int]] -> Array Int [Int]
+-- flipは関数の引数の順序を入れ替える。x:xsは第一引数を二つ目の配列の先頭に追加する演算子
+buildGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
+  where
+    -- concatMapは配列の各要素に関数を適用した後に結合する。ここではu,vを前後入れ替えたtupleにしている
+    -- accumArrayはtupleのfstをindexとして、値にtupleのsndを使う。同じindexに複数の値がある時、accumArrayの第一引数で結合する
+    xs = concatMap (\[u, v] -> [(u, v), (v, u)]) uvs
+
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
 bfs ::
   -- 隣接リストのグラフ
   Array Int [Int] ->
@@ -251,21 +266,11 @@ bfs graph start = runST $ do
             -- 訪問済みならそのまま
             else return q
 
-buildGraph :: (Int, Int) -> [[Int]] -> Array Int [Int]
--- flipは関数の引数の順序を入れ替える。x:xsは第一引数を二つ目の配列の先頭に追加する演算子
-buildGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
-  where
-    -- concatMapは配列の各要素に関数を適用した後に結合する。ここではu,vを前後入れ替えたtupleにしている
-    -- accumArrayはtupleのfstをindexとして、値にtupleのsndを使う。同じindexに複数の値がある時、accumArrayの第一引数で結合する
-    xs = concatMap (\[u, v] -> [(u, v), (v, u)]) uvs
-
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
-
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
-
 main :: IO ()
 main = do
-  print ""
+  [n, m] <- ints
+  abs <- replicateM m ints
+  let g = buildGraph (1, n) abs
+      res = bfs g 1
+
+  mapM_ (print . (res !)) [1 .. n]
