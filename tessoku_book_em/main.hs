@@ -358,13 +358,6 @@ main = do
   -- 初期状態のufを構築しないといけない。初期状態というのは、abs'以外の編の組み合わせを除外したもの
   let removals =
         S.fromList $ mapMaybe (\case [1, i] -> Just (abs' ! i); _ -> Nothing) qs
-      -- removals' =
-      --   foldMap
-      --     ( \case
-      --         [1, i] -> S.singleton (abs' ! i)
-      --         _ -> S.empty
-      --     )
-      --     qs
       availables = S.fromList abs
       remaining = S.toList $ availables S.\\ removals
 

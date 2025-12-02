@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
-import Control.Monad (foldM, foldM_, forM_, msum, replicateM, replicateM_, unless, when)
+import Control.Monad
 import Control.Monad.RWS (MonadState (put))
 import Control.Monad.ST
 import Data.Array (Array)
@@ -23,6 +23,7 @@ import Data.Ix
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
+import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -158,6 +159,21 @@ queryDoubling dp start k = foldl move start [0 .. maxK]
       | testBit k bit = dp ! (bit, pos)
       | otherwise = pos
 
+csum2 :: UArray (Int, Int) Int -> UArray (Int, Int) Int
+csum2 as = runSTUArray $ do
+  -- 境界処理簡略化でboundsを1行1列追加で用意して初期化
+  arr <- newArray ((h' - 1, w' - 1), (h, w)) 0
+
+  forM_ (range $ bounds as) $ \(i, j) -> do
+    -- 累積和の計算。一つ上と一つ左の値を足して、重複するi'j'を引く
+    i'j <- readArray arr (i - 1, j)
+    ij' <- readArray arr (i, j - 1)
+    i'j' <- readArray arr (i - 1, j - 1)
+    writeArray arr (i, j) $! as ! (i, j) + i'j + ij' - i'j'
+  return arr
+  where
+    ((h', w'), (h, w)) = bounds as
+
 buildSegTree :: (VUM.Unbox a) => a -> Int -> IO (VUM.IOVector a)
 buildSegTree e n = VUM.replicate (n * 2) e
 
@@ -258,6 +274,68 @@ buildGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
     -- concatMapは配列の各要素に関数を適用した後に結合する。ここではu,vを前後入れ替えたtupleにしている
     -- accumArrayはtupleのfstをindexとして、値にtupleのsndを使う。同じindexに複数の値がある時、accumArrayの第一引数で結合する
     xs = concatMap (\[u, v] -> [(u, v), (v, u)]) uvs
+
+buildWeightedGraph :: (Int, Int) -> [[Int]] -> Array Int [(Int, Int)]
+buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
+  where
+    xs = concatMap (\[u, v, c] -> [(u, (v, c)), (v, (u, c))]) uvcs
+
+data UnionFind = UF
+  { parent :: !(VUM.IOVector Int),
+    rank :: !(VUM.IOVector Int)
+  }
+
+newUf :: Int -> IO UnionFind
+-- newUf n = UF <$> VUM.generate (n + 1) id <*> VUM.replicate (n + 1) 0
+newUf n = do
+  -- 1basedの添え字で扱いたいのでn+1。個数が増える分には問題ない
+  p <- VUM.generate (n + 1) id
+  r <- VUM.replicate (n + 1) 0
+  return (UF p r)
+
+findUf :: UnionFind -> Int -> IO Int
+findUf uf x = do
+  -- parent[x]を読み込み
+  p <- VUM.read (parent uf) x
+  -- 自身が親なら終了
+  if p == x
+    then return x
+    else do
+      -- 再帰的に親に移動
+      root <- findUf uf p
+      -- 親が見つかったら自身の親を見つかった親に更新
+      -- p <- ... <- xのように途中でなにか挟まっていると呼び出しが増えていってしまう
+      VUM.write (parent uf) x root
+      return root
+
+uniteUf :: UnionFind -> Int -> Int -> IO ()
+uniteUf uf x y = do
+  -- unionfindの同じグループかどうかの判定はrootが同じかどうかで判定される
+  px <- findUf uf x
+  py <- findUf uf y
+  -- 同じなら特に何もせず終了
+  if px == py
+    then return ()
+    else do
+      -- rankを読み取って、より小さい方に大きい方を繋ぐ
+      rx <- VUM.read (rank uf) px
+      ry <- VUM.read (rank uf) py
+      case compare rx ry of
+        LT -> VUM.write (parent uf) px py
+        GT -> VUM.write (parent uf) py px
+        EQ -> do
+          -- 同じだったら片方に繋いで、ランクを1増やす
+          -- writeは配列 index value の順に引数を受ける。parent ufが配列を返すのを忘れずに
+          VUM.write (parent uf) py px -- pyをpxに繋ぐ
+          VUM.modify (rank uf) (+ 1) px -- pxの子が増えたのでrankを+1
+      return ()
+
+sameUf :: UnionFind -> Int -> Int -> IO Bool
+-- sameUf uf x y = (==) <$> findUf uf x <*> findUf uf y
+sameUf uf x y = do
+  px <- findUf uf x
+  py <- findUf uf y
+  return (px == py)
 
 yn :: Bool -> String
 yn True = "Yes"
