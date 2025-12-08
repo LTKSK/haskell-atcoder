@@ -7,6 +7,7 @@
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
 import Control.Monad
+import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.RWS (MonadState (put))
 import Control.Monad.ST
 import Data.Array (Array)
@@ -308,14 +309,14 @@ findUf uf x = do
       VUM.write (parent uf) x root
       return root
 
-uniteUf :: UnionFind -> Int -> Int -> IO ()
+uniteUf :: UnionFind -> Int -> Int -> IO Bool
 uniteUf uf x y = do
   -- unionfindの同じグループかどうかの判定はrootが同じかどうかで判定される
   px <- findUf uf x
   py <- findUf uf y
   -- 同じなら特に何もせず終了
   if px == py
-    then return ()
+    then return False
     else do
       -- rankを読み取って、より小さい方に大きい方を繋ぐ
       rx <- VUM.read (rank uf) px
@@ -328,7 +329,7 @@ uniteUf uf x y = do
           -- writeは配列 index value の順に引数を受ける。parent ufが配列を返すのを忘れずに
           VUM.write (parent uf) py px -- pyをpxに繋ぐ
           VUM.modify (rank uf) (+ 1) px -- pxの子が増えたのでrankを+1
-      return ()
+      return True
 
 sameUf :: UnionFind -> Int -> Int -> IO Bool
 -- sameUf uf x y = (==) <$> findUf uf x <*> findUf uf y

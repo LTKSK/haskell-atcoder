@@ -21,7 +21,7 @@ cabal install --lib vector
 vectorだけをインストールすると、GHC環境ファイルが`clear-package-db`を使って他のパッケージを隠してしまうため、必要な標準パッケージも明示的に追加する：
 
 ```bash
-cabal install --lib array containers bytestring mtl
+cabal install --lib array containers bytestring mtl primitive
 ```
 
 **必要なパッケージ:**
