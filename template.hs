@@ -16,7 +16,7 @@ import Data.Array.ST
 import Data.Array.Unboxed
 import Data.Bits
 import Data.ByteString.Char8 qualified as BS
-import Data.Char (digitToInt, isSpace)
+import Data.Char (digitToInt, intToDigit, isSpace)
 import Data.Heap qualified as H
 import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
@@ -28,9 +28,11 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
+import Numeric (showIntAtBase)
 
 -- デバッグ用
 dbg :: (Show a) => a -> ()
@@ -38,6 +40,9 @@ dbg = (`traceShow` ())
 
 ints :: IO [Int]
 ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+toBinStr :: Int -> String
+toBinStr n = showIntAtBase 2 intToDigit n ""
 
 -- 数字が複数行入った時
 intsN :: Int -> IO [Int]
@@ -337,6 +342,172 @@ sameUf uf x y = do
   px <- findUf uf x
   py <- findUf uf y
   return (px == py)
+
+-- cjpさんの https://atcoder.jp/contests/tessoku-book/submissions/69812807 を参考に
+-- Dinicグラフ
+data DinicGraph m
+  = DinicGraph
+  { -- 頂点数
+    nvDG :: Int,
+    -- 頂点毎の連結リスト
+    graphDG :: VM.MVector (PrimState m) (VUM.MVector (PrimState m) EdgeDG)
+  }
+
+-- 行先、残余容量、逆辺が隣接リストの何番目か
+type EdgeDG = (Int, Int, Int)
+
+emptyDG :: (PrimMonad m) => Int -> m (DinicGraph m)
+emptyDG n = do
+  g <- VUM.new 0
+  graph <- VM.replicate n g
+  return $ DinicGraph n graph
+
+addEdgeDG :: (PrimMonad m) => DinicGraph m -> (Int, Int, Int) -> m ()
+addEdgeDG (DinicGraph nv g) (s, t, cap) = do
+  gs <- VM.read g s
+  gt <- VM.read g t
+  -- s,tそれぞれの頂点の隣接リストを取得。次に追加するedgeのindexのために、lengthを取得
+  let lenS = VUM.length gs
+  let lenT = VUM.length gt
+  -- 更新後のデータを作る。(0,0,0)は直後に上書きされるので何でもよさそう
+  -- growでvectorを伸長する。この未初期化の値も直後に上書きされる
+  gs' <- if lenS == 0 then VUM.replicate 1 (0, 0, 0) else VUM.grow gs 1
+  gt' <- if lenT == 0 then VUM.replicate 1 (0, 0, 0) else VUM.grow gt 1
+  -- 順方向。s->tの辺を追加。逆辺は、tのlenT番目にある
+  VUM.write gs' lenS (t, cap, lenT)
+  -- 逆方向。t->sの辺を追加。順辺は、sのlenS番目にある
+  VUM.write gt' lenT (s, 0, lenS)
+  -- 更新した内容を書き戻し
+  VM.write g s gs'
+  VM.write g t gt'
+
+buildGraphDG :: (PrimMonad m) => Int -> [(Int, Int, Int)] -> m (DinicGraph m)
+buildGraphDG n edges = do
+  adjLists <- VM.replicate n ([] :: [EdgeDG])
+  forM_ edges $ \(u, v, cap) -> do
+    lu <- VM.read adjLists u
+    lv <- VM.read adjLists v
+    -- 逆辺のindexを参照。
+    let ru = length lv -- これから頂点vに追加する辺のindexはlvのlengthになる。lvが2つだったらlengthは2、これは追加後のindexになっている
+        rv = length lu -- 同上。逆向き
+        -- 辺を追加
+    VM.write adjLists u ((v, cap, ru) : lu) -- 順方向
+    VM.write adjLists v ((u, 0, rv) : lv) -- 逆方向
+    -- n頂点分のグラフを作成。辺は無し
+  graph <- VM.new n
+  forM_ [0 .. n - 1] $ \i -> do
+    es <- VM.read adjLists i -- i番目のedge一覧を取得
+    -- VM.write adjLists uのところで先頭に要素を追加していた。実際は末尾に追加されてほしいのでここでreverseしている
+    -- ThawはFreezeの逆で、不変->可変に変換する処理
+    -- thawと違ってコピーが発生しないので高速
+    vec <- VU.unsafeThaw $ VU.fromList (reverse es)
+    VM.write graph i vec
+
+  return $ DinicGraph n graph
+
+-- Dinic法では、まずbfsでレベルグラフを作る
+-- このグラフでは最短距離を計算し、容量が残っていてかつ、通る辺の本数が最小になるものを利用する
+-- 次にdfsを複数回行い、レベルグラフ上の経路で流せなくなるまで流す
+maxFlowDG :: (PrimMonad m) => DinicGraph m -> (Int, Int) -> m Int
+maxFlowDG (DinicGraph n graph) (s, t) = do
+  level <- VUM.replicate n (-1 :: Int)
+  iter <- VUM.replicate n 0
+
+  -- levelグラフを構築する。探索先の管理にはSeqをqueueとして使う
+  let bfs_ = do
+        VUM.set level (-1)
+        VUM.write level s 0 -- 開始地点のレベルを0に
+        let go Seq.Empty = return () -- queueが空になったら終了
+            go (v Seq.:<| q) = do
+              -- 先頭から頂点を取り出し
+              -- その頂点のレベルを取得
+              lv <- VUM.read level v
+              -- その頂点のedgeを取得
+              edges <- VM.read graph v
+              let len = VUM.length edges
+              -- edgesをぐるぐる回す
+              let loop i acc
+                    | i == len = return acc
+                    | otherwise = do
+                        (to, cap, _) <- VUM.read edges i
+                        -- 向かう先のレベルを取得
+                        lto <- VUM.read level to
+                        -- ここまでcapは初期値のままなので、順辺のみを探索する。レベルが<0な辺は未探索の辺
+                        if cap > 0 && lto < 0
+                          then do
+                            -- レベルを現在の頂点+1
+                            VUM.write level to (lv + 1)
+                            -- 次のindexに移動。探索先にtoを追加
+                            loop (i + 1) (acc Seq.|> to)
+                          else loop (i + 1) acc
+              q' <- loop 0 q
+              go q'
+        go (Seq.singleton s)
+
+  -- 頂点とここまでのpathで流せる最大の流量
+  let dfs_ v up
+        -- ゴールの頂点に到達したら流量を返却
+        | v == t = return up
+        | otherwise = do
+            edges <- VM.read graph v
+            -- 次に見る頂点
+            idx <- VUM.read iter v
+            let len = VUM.length edges
+            -- 各辺の処理
+            let loop i
+                  | i == len = return 0
+                  | otherwise = do
+                      -- iterに次に見る頂点として現在の頂点を保存。失敗した時に戻ってこないように更新される
+                      -- idxの値はloopの引数に入っていて、idx..lenの範囲のみを探索
+                      VUM.write iter v i
+                      -- 順方向のedgeの情報を取得
+                      (to, cap, rev) <- VUM.read edges i
+                      lV <- VUM.read level v
+                      lT <- VUM.read level to
+                      -- 容量が残っていて、レベルが増加する方向のedge
+                      if cap > 0 && lV < lT
+                        then do
+                          -- 流量と容量の小さい方を使って再帰。これで容量はどんどこ減っていく
+                          d <- dfs_ to (min up cap)
+                          -- 流せた場合
+                          if d > 0
+                            then do
+                              -- edgeのcapを減らす
+                              VUM.write edges i (to, cap - d, rev)
+                              -- toのrev番目にアクセスすると逆向きの辺が入っている
+                              revEdges <- VM.read graph to
+                              (backTo, backCap, backRev) <- VUM.read revEdges rev
+                              -- d分capを減らしたら、逆辺の容量を増やす
+                              VUM.write revEdges rev (backTo, backCap + d, backRev)
+                              -- 流した流量を返却
+                              return d
+                            else loop (i + 1)
+                        else loop (i + 1)
+            loop idx
+
+  let loopFlow !total = do
+        bfs_
+        -- レベルグラフをbfs_で作った後にゴール地点のレベルを取得。これが-1だと到達できない
+        l <- VUM.read level t
+        if l < 0
+          -- 流せるだけ流したということなので終了
+          then return total
+          else do
+            -- iterの参照先を0にリセット
+            VUM.set iter 0
+            let sendFlow !acc = do
+                  flow <- dfs_ s maxBound
+                  if flow > 0
+                    -- 流した分追加して再帰
+                    then sendFlow (acc + flow)
+                    -- 今回のループで流せた量の合計
+                    else return acc
+            -- 流した量を取得。0の時はもう流せなかったということで終了
+            -- そうでないなら流した量を設定しつつもう一周
+            pushed <- sendFlow 0
+            if pushed == 0 then return total else loopFlow (total + pushed)
+
+  loopFlow 0
 
 yn :: Bool -> String
 yn True = "Yes"
