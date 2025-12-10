@@ -273,6 +273,45 @@ bfs graph start = runST $ do
             -- 訪問済みならそのまま
             else return q
 
+dijkstra ::
+  -- 隣接リストのグラフ
+  Array Int [(Int, Int)] ->
+  -- start
+  Int ->
+  -- 頂点とそこへのstartからの距離
+  UArray Int Int
+dijkstra graph start = runST $ do
+  dist <- newArray (bounds graph) maxBound :: ST s (STUArray s Int Int)
+  -- スタート地点のコストは0
+  writeArray dist start 0
+
+  -- queueは再帰で引き回すのでrefで持たない
+  go dist (H.singleton (H.Entry 0 start))
+  freeze dist
+  where
+    go dist heap
+      | H.null heap = return ()
+      | otherwise = do
+          let Just (H.Entry cost u, heap') = H.viewMin heap
+          currDist <- readArray dist u
+          if cost > currDist
+            then go dist heap'
+            else do
+              -- foldMで現在のheapを更新する
+              -- やることは隣接頂点への重みを更新
+              heap'' <- foldM (relax u cost) heap' (graph ! u)
+              go dist heap''
+      where
+        relax u cost heap (v, c) = do
+          dv <- readArray dist v
+          let newCost = cost + c
+          if newCost < dv
+            then do
+              -- 隣接頂点への重みを更新
+              writeArray dist v newCost
+              return $ H.insert (H.Entry newCost v) heap
+            else return heap
+
 buildGraph :: (Int, Int) -> [[Int]] -> Array Int [Int]
 -- flipは関数の引数の順序を入れ替える。x:xsは第一引数を二つ目の配列の先頭に追加する演算子
 buildGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
