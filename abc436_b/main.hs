@@ -7,11 +7,12 @@
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
 import Control.Monad
-import Control.Monad.Primitive (PrimMonad, PrimState)
+import Control.Monad.Primitive (PrimMonad, PrimState, keepAlive)
 import Control.Monad.RWS (MonadState (put))
 import Control.Monad.ST
 import Data.Array (Array)
 import Data.Array.IArray
+import Data.Array.IO
 import Data.Array.ST
 import Data.Array.Unboxed
 import Data.Bits
@@ -555,23 +556,45 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
+printArray2D arr = do
+  let ((r0, c0), (r1, c1)) = bounds arr
+      rows = range (r0, r1)
+      cols = range (c0, c1)
+  forM_ rows $ \i ->
+    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
+
 main :: IO ()
 main = do
+  --     wrote = S.singleton (0, start)
+  --     solve :: S.Set (Int, Int) -> [((Int, Int), Int)] -> [((Int, Int), Int)]
+  --     solve _ ((_, k) : ans)
+  --       | k == (n * n) + 1 = ans
+  --     solve s ans@(((r, c), k) : rem)
+  --       -- memberの時
+  --       | S.member ((r - 1) `mod` n, (c + 1) `mod` n) s = let pos = ((r + 1) `mod` n, c) in solve (S.insert pos s) ((pos, k + 1) : ans)
+  --       -- memberじゃない時
+  --       | otherwise = let pos = ((r - 1) `mod` n, (c + 1) `mod` n) in solve (S.insert pos s) ((pos, k + 1) : ans)
+  --     updates = solve wrote [((0, start), 1)]
+  --     res = listArray @UArray ((0, 0), (n - 1, n - 1)) (replicate (n * n) (-1)) // updates
+  -- forM_ [0 .. n - 1] $ \i -> do
+  --   putStrLn $ unwords $ [show (res ! (i, j)) | j <- [0 .. n - 1]]
   [n] <- ints
   -- (0,(n-1)/2)に1を書く。n^2-1回、前回書いたマス
   -- array作ってupdatesを考える形にしましょう
   let start = (n - 1) `div` 2
-      wrote = S.singleton (0, start)
-      solve :: S.Set (Int, Int) -> [((Int, Int), Int)] -> [((Int, Int), Int)]
-      solve _ ((_, k) : ans)
-        | k == (n * n) + 1 = ans
-      solve s ans@(((r, c), k) : rem)
-        -- memberの時
-        | S.member ((r - 1) `mod` n, (c + 1) `mod` n) s = let pos = ((r + 1) `mod` n, c) in solve (S.insert pos s) ((pos, k + 1) : ans)
-        -- memberじゃない時
-        | otherwise = let pos = ((r - 1) `mod` n, (c + 1) `mod` n) in solve (S.insert pos s) ((pos, k + 1) : ans)
-      updates = solve wrote [((0, start), 1)]
-      res = listArray @UArray ((0, 0), (n - 1, n - 1)) (replicate (n * n) (-1)) // updates
+  arr <- newArray @IOUArray ((0, 0), (n - 1, n - 1)) 0
+  let loop r c k
+        | k > n * n = return ()
+        | otherwise = do
+            writeArray arr (r, c) k
+            let nr = (r - 1) `mod` n
+                nc = (c + 1) `mod` n
+            v <- readArray arr (nr, nc)
+            if v == 0
+              then loop nr nc (k + 1)
+              else loop ((r + 1) `mod` n) c (k + 1)
+  loop 0 start 1
+  arr' <- freeze arr :: IO (UArray (Int, Int) Int)
 
-  forM_ [0 .. n - 1] $ \i -> do
-    putStrLn $ unwords $ [show (res ! (i, j)) | j <- [0 .. n - 1]]
+  printArray2D arr'
