@@ -84,6 +84,9 @@ getMatChar :: Int -> Int -> IO (UArray (Int, Int) Char)
 -- concatで多次元配列を1次元配列に
 getMatChar h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
 
+getMatCharZeroBased :: Int -> Int -> IO (UArray (Int, Int) Char)
+getMatCharZeroBased h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h getLine
+
 -- tuple拡張
 instance (Num a) => Num (a, a) where
   (x1, x2) + (y1, y2) = (x1 + y1, x2 + y2)
@@ -624,10 +627,12 @@ printYn = putStrLn . yn
 --             -- 訪問済みならそのまま
 --             else return q
 
+lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
 main :: IO ()
 main = do
   [h, w] <- ints
-  cs <- getMatChar h w
+  cs <- getMatCharZeroBased h w
   --     posToId w (i, j) = i * w + j
   --     cToId h w c = h * w + (ord c - ord 'a')
 
@@ -641,57 +646,112 @@ main = do
   -- print $ res ! (h, w)
 
   -- 参考：https://atcoder.jp/contests/abc436/submissions/71676783
-  let g =
-        accumArray @Array
-          (flip (:))
-          []
-          ('a', 'z')
-          [ (c, p) | p <- range (bounds cs), let c = cs ! p, inRange ('a', 'z') c
-          ]
-      lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
-      relax dist newDistance q u = do
-        du <- readArray dist u
-        -- 訪問済みは無視！
-        if du /= -1
-          then return q
-          else do
-            -- そうじゃない場合は入力のコストで更新したうえで、その頂点をqueueに詰める
-            writeArray dist u newDistance
-            return (q Seq.|> u)
-  ans <- do
-    dist <- newArray @IOUArray (bounds cs) (-1 :: Int)
-    visited <- newArray @IOUArray ('a', 'z') False
-    writeArray dist (1, 1) 0
-    let loop q = case Seq.viewl q of
-          Seq.EmptyL -> return ()
-          v Seq.:< q' -> do
-            dv <- readArray dist v
-            -- 頂点の上下左右を探索
-            let us =
-                  [ u
-                    | d <- lrud,
-                      let u = v + d,
-                      inRange (bounds cs) u,
-                      cs ! u /= '#'
-                  ]
-            -- 隣接頂点で緩和
-            q1 <- foldM (relax dist (dv + 1)) q' us
-            -- 文字取得
-            let c = cs ! v
-            q2 <-
-              -- a~zで訪問済みなら無視
-              if inRange ('a', 'z') c
-                then do
-                  flg <- readArray visited c
-                  if flg
-                    then return q1
-                    else do
-                      writeArray visited c True
-                      -- ワープマスの隣接頂点を緩和
-                      -- 上のfoldMとの違いは隣接頂点を上下左右で受けるか、ワープマスで受けるかの差
-                      foldM (relax dist (dv + 1)) q1 (g ! c)
-                else return q1
-            loop q2
-    loop (Seq.singleton (1, 1))
-    readArray dist (h, w)
-  print g
+  -- let g =
+  --       accumArray @Array
+  --         (flip (:))
+  --         []
+  --         ('a', 'z')
+  --         [ (c, p) | p <- range (bounds cs), let c = cs ! p, inRange ('a', 'z') c
+  --         ]
+  --     lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+  --     relax dist newDistance q u = do
+  --       du <- readArray dist u
+  --       -- 訪問済みは無視！
+  --       if du /= -1
+  --         then return q
+  --         else do
+  --           -- そうじゃない場合は入力のコストで更新したうえで、その頂点をqueueに詰める
+  --           writeArray dist u newDistance
+  --           return (q Seq.|> u)
+  -- ans <- do
+  --   dist <- newArray @IOUArray (bounds cs) (-1 :: Int)
+  --   visited <- newArray @IOUArray ('a', 'z') False
+  --   writeArray dist (1, 1) 0
+  --   let loop q = case Seq.viewl q of
+  --         Seq.EmptyL -> return ()
+  --         v Seq.:< q' -> do
+  --           dv <- readArray dist v
+  --           -- 頂点の上下左右を探索
+  --           let us =
+  --                 [ u
+  --                   | d <- lrud,
+  --                     let u = v + d,
+  --                     inRange (bounds cs) u,
+  --                     cs ! u /= '#'
+  --                 ]
+  --           -- 隣接頂点で緩和
+  --           q1 <- foldM (relax dist (dv + 1)) q' us
+  --           -- 文字取得
+  --           let c = cs ! v
+  --           q2 <-
+  --             -- a~zで訪問済みなら無視
+  --             if inRange ('a', 'z') c
+  --               then do
+  --                 flg <- readArray visited c
+  --                 if flg
+  --                   then return q1
+  --                   else do
+  --                     writeArray visited c True
+  --                     -- ワープマスの隣接頂点を緩和
+  --                     -- 上のfoldMとの違いは隣接頂点を上下左右で受けるか、ワープマスで受けるかの差
+  --                     foldM (relax dist (dv + 1)) q1 (g ! c)
+  --               else return q1
+  --           loop q2
+  --   loop (Seq.singleton (1, 1))
+  --   readArray dist (h, w)
+  -- print g
+
+  -- 参考：https://atcoder.jp/contests/abc436/submissions/71678512
+  let !warps = accumArray @Array (flip (:)) [] (0, 25) [(ord (cs ! (i, j)) - ord 'a', (i, j)) | i <- [0 .. h - 1], j <- [0 .. w - 1], cs ! (i, j) /= '.', cs ! (i, j) /= '#']
+      !bound = ((0, 0), (h - 1, w - 1))
+      -- 座標を受けて隣接する頂点とその頂点のコストを返す
+      nxtv (!x, !y)
+        | x == h && y >= 26 = []
+        -- hはcsのbound範囲外で、そこに超頂点のa~zを埋めている。
+        -- この時yがwarpsの座標に対応していて(超頂点の座標)、超頂点`から`得られる座標への遷移をコスト1として登録
+        | x == h = map (,1) $ warps ! y
+        | otherwise =
+            [(v, 1) | !v <- map (\p -> p + (x, y)) lrud, inRange bound v, cs ! v /= '#']
+              -- x,yがa~zの時、超頂点`へ`の遷移をコスト0として登録
+              -- ここで入れた座標が一つ上のパターンマッチで解決される
+              ++ [((h, c), 0) | let c = ord (cs ! (x, y)) - ord 'a', 0 <= c, c <= 25]
+
+  res <- do
+    -- 超頂点を含むbound
+    let sb = ((0, 0), (h, max (w - 1) 25))
+    dist <- newArray @IOUArray sb (-1 :: Int)
+    checked <- newArray @IOUArray sb False
+    writeArray dist (0, 0) 0
+    let loop deq = case Seq.viewl deq of
+          Seq.EmptyL -> do return ()
+          v Seq.:< deq' -> do
+            -- 訪問済みなら無視
+            cv <- readArray checked v
+            if cv
+              then loop deq'
+              else do
+                -- distとcheckedを踏んだので更新しつつ、deqに頂点を詰めて再帰
+                -- コスト0の頂点は優先してみないといけないので先頭に詰める必要がある点に注意
+                let wds = nxtv v
+                dv <- readArray dist v
+                deq'' <-
+                  foldM
+                    ( \q (w, d) -> do
+                        dw <- readArray dist w
+                        if dw == -1
+                          then do
+                            writeArray dist w $! dv + d
+                            if d == 0
+                              -- コスト0は前に、コスト1は末尾に追加する
+                              then return $ w Seq.<| q
+                              else return $ q Seq.|> w
+                          else return q
+                    )
+                    deq'
+                    wds
+                writeArray checked v True
+                loop deq''
+    loop (Seq.singleton (0, 0))
+    readArray dist (h - 1, w - 1)
+
+  print res
