@@ -555,6 +555,15 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+instance (Num a) => Num (a, a) where
+  (x1, x2) + (y1, y2) = (x1 + y1, x2 + y2)
+  (x1, x2) - (y1, y2) = (x1 - y1, x2 - y2)
+  (x1, x2) * (y1, y2) = (x1 * y1, x2 * y2)
+  negate (x1, x2) = (negate x1, negate x2)
+  abs (x1, x2) = (abs x1, abs x2)
+  signum (x1, x2) = (signum x1, signum x2)
+  fromInteger n = (fromInteger n, fromInteger n)
+
 main :: IO ()
 main = do
   [n, m] <- ints
@@ -562,10 +571,19 @@ main = do
     [r, c] <- ints
     return (r, c)
   -- nとminを取りつつ、各座標をsetに埋めていく。最終的にlength数えたら終わりでね？4マス数えてもO(1)のはず
-  let s = S.empty :: S.Set (Int, Int)
-      step :: S.Set (Int, Int) -> (Int, Int) -> S.Set (Int, Int)
-      step s (r, c)
-        | S.member (r, c) s || S.member (r + 1, c) s || S.member (r, c + 1) s || S.member (r + 1, min (c + 1) n) s = s
-        | otherwise = S.insert (r, c) $ S.insert (r + 1, c) $ S.insert (r, c + 1) $ S.insert (r + 1, c + 1) s
-      res = L.foldl' step s rcs
-  print $ length res `div` 4
+  -- let s = S.empty :: S.Set (Int, Int)
+  --     step :: S.Set (Int, Int) -> (Int, Int) -> S.Set (Int, Int)
+  --     step s (r, c)
+  --       | S.member (r, c) s || S.member (r + 1, c) s || S.member (r, c + 1) s || S.member (r + 1, min (c + 1) n) s = s
+  --       | otherwise = S.insert (r, c) $ S.insert (r + 1, c) $ S.insert (r, c + 1) $ S.insert (r + 1, c + 1) s
+  --     res = L.foldl' step s rcs
+  let s' = L.foldl' step S.empty rcs
+        where
+          step s v = do
+            let x = S.fromList [v, v + (1, 0), v + (0, 1), v + (1, 1)]
+            -- 共通部分チェック
+            if S.disjoint x s
+              -- ない
+              then S.union x s
+              else s
+  print $ S.size s' `div` 4
