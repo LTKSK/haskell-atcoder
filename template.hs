@@ -12,11 +12,12 @@ import Control.Monad.RWS (MonadState (put))
 import Control.Monad.ST
 import Data.Array (Array)
 import Data.Array.IArray
+import Data.Array.IO
 import Data.Array.ST
 import Data.Array.Unboxed
 import Data.Bits
 import Data.ByteString.Char8 qualified as BS
-import Data.Char (digitToInt, intToDigit, isSpace)
+import Data.Char (digitToInt, intToDigit, isSpace, ord)
 import Data.Heap qualified as H
 import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
@@ -235,6 +236,8 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
           -- 子iの親はi/2+1。divは切り捨てなのでl'+1を2で割っても同じ計算。5`div`2+1==6`div`2
           -- rは偶奇に関わらず親に向かう。rは含まれない範囲
           go ((l' + 1) `div` 2) (r' `div` 2) acc2
+
+lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 bfs ::
   -- 隣接リストのグラフ
@@ -548,12 +551,21 @@ maxFlowDG (DinicGraph n graph) (s, t) = do
 
   loopFlow 0
 
+-- 表示系
 yn :: Bool -> String
 yn True = "Yes"
 yn False = "No"
 
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
+
+printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
+printArray2D arr = do
+  let ((r0, c0), (r1, c1)) = bounds arr
+      rows = range (r0, r1)
+      cols = range (c0, c1)
+  forM_ rows $ \i ->
+    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
 main :: IO ()
 main = do
