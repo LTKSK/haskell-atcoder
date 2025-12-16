@@ -92,6 +92,16 @@ binSearch f ok ng
             then binSearch f mid ng -- 条件を満たすならmidをokに
             else binSearch f ok mid -- 逆はngをmidに
 
+-- tuple拡張
+instance (Num a) => Num (a, a) where
+  (x1, x2) + (y1, y2) = (x1 + y1, x2 + y2)
+  (x1, x2) - (y1, y2) = (x1 - y1, x2 - y2)
+  (x1, x2) * (y1, y2) = (x1 * y1, x2 * y2)
+  negate (x1, x2) = (negate x1, negate x2)
+  abs (x1, x2) = (abs x1, abs x2)
+  signum (x1, x2) = (signum x1, signum x2)
+  fromInteger n = (fromInteger n, fromInteger n)
+
 -- fを満たす最小の値を探す
 -- leftは探索範囲の左側で、答えの値を含まない。rightは右側で含む
 binSearchMin :: (Integral t) => (t -> Bool) -> t -> t -> t
