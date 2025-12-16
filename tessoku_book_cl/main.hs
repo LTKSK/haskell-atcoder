@@ -590,16 +590,16 @@ shakutori p op invOp identity as = go as as 0 identity
 main :: IO ()
 main = do
   [n, k] <- ints
-  as <- listArray @UArray (0, n) . L.scanl' (+) 0 <$> ints
-  -- as <- L.scanl1 (+) <$> ints
-  -- 合計K円以下。sortして累積和取って尺取り。買い方の数を計上すること
-  let shakutori' arr k = go 1 1 0
-      go l r cum
-        | r > n = cum
-        -- 条件を満たしたらrを伸長しつつ部分列を計上する。
-        -- indexなので、r=5,l=2の時、[l,r]の個数は4つである。添え字で引き算すると1足りなくなるのに注意
-        | (as ! r) - (as ! (l - 1)) > k = go (l + 1) r cum
-        | otherwise = go l (r + 1) (cum + (r - l + 1))
-  print $ shakutori' as k
+  as <- ints
+  print . sum $ shakutori (\r res -> res + r <= k) (+) (-) 0 as
 
--- print $ shakutori (\r res -> res + r <= k) (+) (-) 0 as
+-- as <- listArray @UArray (0, n) . L.scanl' (+) 0 <$> ints
+-- -- 合計K円以下。sortして累積和取って尺取り。買い方の数を計上すること
+-- let shakutori' arr k = go 1 1 0
+--     go l r cum
+--       | r > n = cum
+--       -- 条件を満たしたらrを伸長しつつ部分列を計上する。
+--       -- indexなので、r=5,l=2の時、[l,r]の個数は4つである。添え字で引き算すると1足りなくなるのに注意
+--       | (as ! r) - (as ! (l - 1)) > k = go (l + 1) r cum
+--       | otherwise = go l (r + 1) (cum + (r - l + 1))
+-- print $ shakutori' as k
