@@ -127,6 +127,27 @@ sieve n = runSTUArray $ do
         writeArray arr j False
   return arr
 
+-- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
+shakutori ::
+  (a -> b -> Int -> Bool) -> -- 条件p
+  (b -> a -> b) -> -- 右端を伸ばす演算op
+  (b -> a -> b) -> -- 左端を縮める演算invOp
+  b -> -- 初期値 identyty
+  [a] -> -- 入力のリスト
+  [Int] -- 戻り値。条件を満たす部分列の長さのリスト
+shakutori p op invOp identity as = go as as 0 identity
+  where
+    -- 右端が空になった際は左を詰める
+    go lls@(l : ls) [] len res = len : (go ls [] (len - 1) (invOp res l))
+    go lls@(l : ls) rrs@(r : rs) len res
+      -- 条件を満たしたら伸長
+      | p r res len = go lls rs (len + 1) (op res r)
+      | len == 0 = 0 : (go ls rs 0 identity)
+      -- 条件を満たさない場合は短縮。短縮はlsを渡すことで実現している
+      -- 引数のasはどちらも同じ内容なので、lやrはlとrのポインタに相当する。添え字排除のためにこうなんだと思う
+      | otherwise = len : (go ls rrs (len - 1) (invOp res l))
+    go _ _ _ _ = []
+
 -- 高速べき乗
 powMod :: Int -> Int -> Int -> Int
 powMod a b m
