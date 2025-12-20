@@ -4,6 +4,8 @@
 {-# LANGUAGE BlockArguments #-}
 -- \case -> が書けるようになる
 {-# LANGUAGE LambdaCase #-}
+-- if | で複数のパターン書き下せるようになる
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
 import Control.Monad
