@@ -94,6 +94,14 @@ binSearch f ok ng
             then binSearch f mid ng -- 条件を満たすならmidをokに
             else binSearch f ok mid -- 逆はngをmidに
 
+binSearch' :: (Int -> Bool) -> Int -> Int -> Maybe Int
+binSearch' f !ok !ng
+  | abs (ok - ng) <= 1 = if f ok then Just ok else Nothing
+  | f mid = binSearch' f mid ng -- midがok
+  | otherwise = binSearch' f ok mid -- midがng
+  where
+    mid = (ok + ng) `div` 2
+
 -- tuple拡張
 instance (Num a) => Num (a, a) where
   (x1, x2) + (y1, y2) = (x1 + y1, x2 + y2)
@@ -611,6 +619,6 @@ main = do
 
   -- asをbで二分探索して、自身のレートより大きい最大のindexを取得する
   let ans =
-        [res | b <- bs, let r = binSearch (\i -> i >= 1 && (as ! i) >= b) n 0, let r2 = max 1 (r - 1), let res = min (abs ((as ! r) - b)) (abs ((as ! r2) - b))]
+        [res | b <- bs, let r = binSearch (\i -> i >= 1 && (as ! i) <= b) n 0, let r2 = max 1 (r - 1), let res = min (abs ((as ! r) - b)) (abs ((as ! r2) - b))]
 
   mapM_ (putStrLn . show) ans

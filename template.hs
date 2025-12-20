@@ -94,6 +94,15 @@ binSearch f ok ng
             then binSearch f mid ng -- 条件を満たすならmidをokに
             else binSearch f ok mid -- 逆はngをmidに
 
+-- 条件を満たすものがなかった時にNothingを返す。なんもなかったら初期値を使いたい場合なんかを想定
+binSearch' :: (Int -> Bool) -> Int -> Int -> Maybe Int
+binSearch' f !ok !ng
+  | abs (ok - ng) <= 1 = if f ok then Just ok else Nothing
+  | f mid = binSearch' f mid ng -- midがok
+  | otherwise = binSearch' f ok mid -- midがng
+  where
+    mid = (ok + ng) `div` 2
+
 -- tuple拡張
 instance (Num a) => Num (a, a) where
   (x1, x2) + (y1, y2) = (x1 + y1, x2 + y2)
