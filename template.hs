@@ -169,6 +169,15 @@ shakutori p op invOp identity as = go as as 0 identity
       | otherwise = len : (go ls rrs (len - 1) (invOp res l))
     go _ _ _ _ = []
 
+-- もじゅーら計算
+modulus :: Int
+modulus = 1_000_000_007
+
+addMod, subMod, mulMod :: Int -> Int -> Int
+addMod x y = (x + y) `mod` modulus
+subMod x y = (x - y) `mod` modulus
+mulMod x y = (x * y) `mod` modulus
+
 -- 高速べき乗
 powMod :: Int -> Int -> Int -> Int
 powMod a b m
@@ -176,14 +185,51 @@ powMod a b m
   | even b = powMod ((a * a) `mod` m) (b `div` 2) m
   | otherwise = (a * powMod a (b - 1) m) `mod` m
 
--- もじゅーら計算
-modulus :: Int64
-modulus = 1_000_000_007
+invMod :: Int -> Int
+invMod x = powMod x (modulus - 2) modulus
 
-addMod, subMod, mulMod :: Int64 -> Int64 -> Int64
-addMod x y = (x + y) `mod` modulus
-subMod x y = (x - y) `mod` modulus
-mulMod x y = (x * y) `mod` modulus
+-- exEuclid a b は s * a + t * b == g となる (g, s, t) を返す
+-- sがaの逆元として使える
+exEuclid :: Int -> Int -> (Int, Int, Int)
+exEuclid a b = loop 1 0 0 1 a b
+  where
+    loop s t s' t' a b
+      | b == 0 = (a, s, t)
+      | otherwise = case a `divMod` b of
+          (q, r) -> loop s' t' (s - q * s') (t - q * t') b r
+
+invMod' :: Int -> Int
+invMod' a = case exEuclid a modulus of
+  (1, s, _) -> s `mod` modulus
+  (-1, s, _) -> (-s) `mod` modulus
+  _anyOfFailure -> error $ show a ++ " has no inverse modulo" ++ show @Int modulus
+
+newtype IntMod = IntMod Int deriving (Eq)
+
+instance Show IntMod where
+  show (IntMod x) = show x
+
+instance Num IntMod where
+  IntMod x + IntMod y = IntMod ((x + y) `rem` modulus) -- 非負の場合remの方が高速だそう
+  IntMod x - IntMod y = IntMod ((x - y) `mod` modulus)
+  IntMod x * IntMod y = IntMod ((x * y) `rem` modulus) -- 非負の場合remの方が高速だそう
+  fromInteger n = IntMod (fromInteger (n `mod` fromIntegral modulus))
+  negate (IntMod x) = IntMod ((modulus - x) `mod` modulus)
+  abs = undefined
+  signum = undefined
+
+instance Fractional IntMod where
+  IntMod x / IntMod y = IntMod ((x * invMod y) `mod` modulus)
+
+  -- 逆元：1/x=x^(-1)
+  recip (IntMod x) = IntMod (invMod x)
+  fromRational = undefined
+
+fact :: Int -> IntMod
+fact n = product [IntMod i | i <- [1 .. n]]
+
+nCr :: Int -> Int -> IntMod
+nCr n r = fact n / (fact r * fact (n - r))
 
 -- combination
 comb :: Int -> Int -> Int
