@@ -659,4 +659,29 @@ printArray2D arr = do
 
 main :: IO ()
 main = do
-  print ""
+  [n, q] <- ints
+  -- modで添え字を丸めるので0basedが扱いやすい
+  as <- listArray @UArray (0, n - 1) <$> ints
+  pos <- newListArray (0, n - 1) [0 .. n - 1] :: IO (IOArray Int Int)
+  shift <- newIORef 0
+  replicateM_ q $ do
+    [t, x, y] <- ints
+    case t of
+      1 -> do
+        s <- readIORef shift
+        -- shiftをする前の添え字番号を取得
+        let idx1 = (x - 1 + s) `mod` n
+            idx2 = (y - 1 + s) `mod` n
+        v1 <- readArray pos idx1
+        v2 <- readArray pos idx2
+        -- 値を入れ替え
+        writeArray pos idx1 v2
+        writeArray pos idx2 v1
+      2 -> do
+        -- 右シフトなので添え字の移動は左（マイナス方向）
+        modifyIORef' shift (\s -> (s - 1) `mod` n)
+      3 -> do
+        s <- readIORef shift
+        let idx = (x - 1 + s) `mod` n
+        originalPos <- readArray pos idx
+        print $ as ! originalPos
