@@ -660,6 +660,8 @@ printArray2D arr = do
 
 main :: IO ()
 main = do
-  [a, b] <- integers
-  let res = lcm a b
-  putStrLn $ if res > 10 ^ 18 then "Large" else show res
+  [a, b] <- ints
+  -- let res = lcm a b
+  -- putStrLn $ if res > 10 ^ 18 then "Large" else show res
+  let gcd' = gcd a b
+  putStrLn $ if a `div` gcd' > 10 ^ 18 `div` b then "Large" else show $ a `div` gcd' * b
