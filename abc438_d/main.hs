@@ -673,23 +673,43 @@ main = do
   --     ans = maximum [maxGs ! (y - 1) + hs ! y + fs ! n | y <- [2 .. n - 1]]
   -- print ans
 
+  -- let dp =
+  --       listArray @Array
+  --         (0, n)
+  --         ( (0, minBound, minBound)
+  --             : [ let a = as' ! i
+  --                     b = bs' ! i
+  --                     c = cs' ! i
+  --                     (pd1, pd2, pd3) = dp ! (i - 1)
+  --                  in ( pd1 + a, -- 頭
+  --                       max pd1 pd2 + b, -- 胴
+  --                       max pd2 pd3 + c -- ケツ
+  --                     )
+  --                 | i <- [1 .. n]
+  --               ]
+  --         )
+  --     (_, _, ans) = dp ! n
+
   let as' = listArray @UArray (1, n) as
-  let bs' = listArray @UArray (1, n) bs
-  let cs' = listArray @UArray (1, n) cs
-  let dp =
-        listArray @Array
-          (0, n)
-          ( (0, minBound, minBound)
-              : [ let a = as' ! i
-                      b = bs' ! i
-                      c = cs' ! i
-                      (pd1, pd2, pd3) = dp ! (i - 1)
-                   in ( pd1 + a, -- 頭
-                        max pd1 pd2 + b, -- 胴
-                        max pd2 pd3 + c -- ケツ
-                      )
-                  | i <- [1 .. n]
-                ]
-          )
+      bs' = listArray @UArray (1, n) bs
+      cs' = listArray @UArray (1, n) cs
+      dp = listArray @Array (0, n) [step i | i <- [0 .. n]]
+      step 0 = (minBound :: Int, minBound :: Int, minBound :: Int)
+      step i =
+        let a = as' ! i
+            b = bs' ! i
+            c = cs' ! i
+            (pa, pb, pc) = dp ! (i - 1)
+         in (a + max 0 pa, b + max pa pb, c + max pb pc)
       (_, _, ans) = dp ! n
   print ans
+
+-- let go [] [] [] a1 b1 c1 = []
+--     go (a0 : a) (b0 : b) (c0 : c) a1 b1 c1 = c2 : go a b c a2 b2 c2
+--       where
+--         a2 = a0 + max 0 a1
+--         b2 = b0 + max a1 b1
+--         c2 = c0 + max b1 c1
+--     mn = -10 ^ 14 :: Int
+--     ans = maximum $ go as bs cs mn mn mn
+-- print ans
