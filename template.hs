@@ -30,6 +30,7 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Vector.Algorithms.Intro qualified as VAI
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
@@ -270,6 +271,46 @@ csum2 as = runSTUArray $ do
   return arr
   where
     ((h', w'), (h, w)) = bounds as
+
+-- ref: https://atcoder.jp/contests/abc439/submissions/72180327
+-- 高速平方根計算
+floorSqrt :: Int -> Int
+floorSqrt n
+  | n < 0 = error "Negative Root"
+  | n == 0 = 0
+  | otherwise =
+      let !k = 32 - unsafeShiftR (countLeadingZeros (n - 1)) 1
+          !x0 = unsafeShiftL 1 k
+          !x1 = unsafeShiftR (x0 + unsafeShiftR n k) 1
+       in go x0 x1
+  where
+    go !x !x'
+      | x' < x = go x' (unsafeShiftR (x' + quot n x') 1)
+      | otherwise = x
+
+-- vectorを使った高速なsort
+fastSortU :: (VUM.Unbox a, Ord a) => VU.Vector a -> VU.Vector a
+fastSortU = VU.modify (VAI.sortBy compare)
+
+fastSortLU :: (VUM.Unbox a, Ord a) => [a] -> [a]
+fastSortLU = VU.toList . fastSortU . VU.fromList
+
+fastSortDescLU :: (VUM.Unbox a, Ord a) => [a] -> [a]
+fastSortDescLU = VU.toList . VU.modify (VAI.sortBy (comparing Down)) . VU.fromList
+
+fastSortByLU :: (VUM.Unbox a) => (a -> a -> Ordering) -> [a] -> [a]
+fastSortByLU ordering = VU.toList . fastSortByU ordering . VU.fromList
+
+fastSortByU :: (VUM.Unbox a) => (a -> a -> Ordering) -> VU.Vector a -> VU.Vector a
+fastSortByU ordering = VU.modify (VAI.sortBy ordering)
+
+-- ランレングス圧縮
+-- sort済みの配列を受け取る必要あり
+-- L.groupを実行した結果の、[(要素,個数)]を返す
+runLength :: (Eq a) => [a] -> [(a, Int)]
+runLength = map f . L.group
+  where
+    f xs@(x : _) = let !len = length xs in (x, len)
 
 buildSegTree :: (VUM.Unbox a) => a -> Int -> IO (VUM.IOVector a)
 buildSegTree e n = VUM.replicate (n * 2) e
