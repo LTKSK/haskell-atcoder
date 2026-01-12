@@ -16,6 +16,7 @@ import Data.Array.IO
 import Data.Array.ST
 import Data.Array.Unboxed
 import Data.Bits
+import Data.Bool
 import Data.ByteString.Char8 qualified as BS
 import Data.Char (digitToInt, intToDigit, isSpace, ord)
 import Data.Heap qualified as H
@@ -408,7 +409,7 @@ bfs graph start = runST $ do
             else return q
 
 dijkstra ::
-  -- 隣接リストのグラフ
+  -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
   Array Int [(Int, Int)] ->
   -- start
   Int ->
