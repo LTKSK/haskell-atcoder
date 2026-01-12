@@ -16,6 +16,7 @@ import Data.Array.IO
 import Data.Array.ST
 import Data.Array.Unboxed
 import Data.Bits
+import Data.Bool
 import Data.ByteString.Char8 qualified as BS
 import Data.Char (digitToInt, intToDigit, isSpace, ord)
 import Data.Heap qualified as H
@@ -151,27 +152,6 @@ sieve n = runSTUArray $ do
       forM_ [i * i, i * i + i .. n] $ \j ->
         writeArray arr j False
   return arr
-
--- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
-shakutori ::
-  (a -> b -> Int -> Bool) -> -- 条件p
-  (b -> a -> b) -> -- 右端を伸ばす演算op
-  (b -> a -> b) -> -- 左端を縮める演算invOp
-  b -> -- 初期値 identyty
-  [a] -> -- 入力のリスト
-  [Int] -- 戻り値。条件を満たす部分列の長さのリスト
-shakutori p op invOp identity as = go as as 0 identity
-  where
-    -- 右端が空になった際は左を詰める
-    go lls@(l : ls) [] len res = len : (go ls [] (len - 1) (invOp res l))
-    go lls@(l : ls) rrs@(r : rs) len res
-      -- 条件を満たしたら伸長
-      | p r res len = go lls rs (len + 1) (op res r)
-      | len == 0 = 0 : (go ls rs 0 identity)
-      -- 条件を満たさない場合は短縮。短縮はlsを渡すことで実現している
-      -- 引数のasはどちらも同じ内容なので、lやrはlとrのポインタに相当する。添え字排除のためにこうなんだと思う
-      | otherwise = len : (go ls rrs (len - 1) (invOp res l))
-    go _ _ _ _ = []
 
 -- もじゅーら計算
 modulus :: Int
@@ -699,28 +679,108 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+-- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
+shakutori ::
+  (a -> b -> Int -> Bool) -> -- 条件p
+  (b -> a -> b) -> -- 右端を伸ばす演算op
+  (b -> a -> b) -> -- 左端を縮める演算invOp
+  b -> -- 初期値 identyty
+  [a] -> -- 入力のリスト
+  [Int] -- 戻り値。条件を満たす部分列の長さのリスト
+shakutori p op invOp identity as = go as as 0 identity
+  where
+    -- 右端が空になった際は左を詰める
+    go lls@(l : ls) [] len res = len : (go ls [] (len - 1) (invOp res l))
+    go lls@(l : ls) rrs@(r : rs) len res
+      -- 条件を満たしたら伸長
+      | p r res len = go lls rs (len + 1) (op res r)
+      | len == 0 = 0 : (go ls rs 0 identity)
+      -- 条件を満たさない場合は短縮。短縮はlsを渡すことで実現している
+      -- 引数のasはどちらも同じ内容なので、lやrはlとrのポインタに相当する。添え字排除のためにこうなんだと思う
+      | otherwise = len : (go ls rrs (len - 1) (invOp res l))
+    go _ _ _ _ = []
+
+-- IntMultiSet 参考: https://atcoder.jp/contests/typical90/submissions/61509938
+data IntMultiSet = IntMultiSet
+  { sizeMS :: !Int, -- 集合に含まれる値の個数 O(1)
+    distinctSizeMS :: !Int, -- 集合に含まれる値の種類数 O(1)
+    mapMS :: IM.IntMap Int
+  }
+  deriving (Eq)
+
+instance Show IntMultiSet where
+  show = show . toListMS
+
+fromListMS :: [Int] -> IntMultiSet
+fromListMS = L.foldl' (flip insertMS) emptyMS
+
+toListMS :: IntMultiSet -> [Int]
+toListMS IntMultiSet {mapMS = m} = concatMap @[] (\(k, v) -> replicate v k) (IM.toList m)
+
+emptyMS :: IntMultiSet
+emptyMS = IntMultiSet 0 0 IM.empty
+
+singletonMS :: Int -> IntMultiSet
+singletonMS x = insertMS x emptyMS
+
+insertMS :: Int -> IntMultiSet -> IntMultiSet
+insertMS x (IntMultiSet size dSize m)
+  | IM.member x m = IntMultiSet (size + 1) dSize m'
+  | otherwise = IntMultiSet (size + 1) (dSize + 1) m'
+  where
+    m' = IM.insertWith (+) x 1 m
+
+-- x を n 個追加する
+-- >>> insertNMS 5 2 (fromListMS [0])
+-- [0,2,2,2,2,2]
+insertNMS :: Int -> Int -> IntMultiSet -> IntMultiSet
+insertNMS n x (IntMultiSet size dSize m)
+  | IM.member x m = IntMultiSet (size + n) dSize m'
+  | otherwise = IntMultiSet (size + n) (dSize + 1) m'
+  where
+    m' = IM.insertWith @Int (+) x n m
+
+deleteMS :: Int -> IntMultiSet -> IntMultiSet
+deleteMS x s@(IntMultiSet size dSize m)
+  | IM.member x m =
+      let m' = IM.update @Int (\k -> let k' = k - 1 in bool Nothing (Just k') $ k' > 0) x m
+       in if IM.member x m'
+            then IntMultiSet (size - 1) dSize m'
+            else IntMultiSet (size - 1) (dSize - 1) m'
+  | otherwise = s
+
+---- ここまで
+
 main :: IO ()
 main = do
   [n, k] <- ints
-  as <- listArray @UArray (1, n) <$> ints
-  let solve :: UArray Int Int -> Int
-      -- IntMapで出現個数を管理しておかないといけない。Setじゃダメ（1敗）
-      solve arr = go 1 1 IM.empty 0 0
+  as <- ints
+  let s = shakutori p op invOp emptyMS as
         where
-          go l r m maxLen size
-            | r > n = maxLen
-            -- 既にあるなら伸ばせる
-            -- 列の長さなのでr-lに1を足す必要がある(l自体も含む)
-            | IM.member (arr ! r) m = go l (r + 1) (IM.insertWith (+) (arr ! r) 1 m) (max maxLen (r - l + 1)) size
-            -- 新しい値でもK未満なら入る
-            | size < k = go l (r + 1) (IM.insertWith (+) (arr ! r) 1 m) (max maxLen (r - l + 1)) (size + 1)
-            | otherwise =
-                let v = arr ! l
-                    c = m IM.! v
-                    (m', size') =
-                      -- 最後の一つなら削除、2つ以上あるならdecriment
-                      if c == 1
-                        then (IM.delete v m, size - 1)
-                        else (IM.insert v (c - 1) m, size)
-                 in go (l + 1) r m' maxLen size'
-  print $ solve as
+          p r res _ = distinctSizeMS (insertMS r res) <= k
+          op res r = insertMS r res
+          invOp res l = deleteMS l res
+  print $ maximum s
+
+-- as <- listArray @UArray (1, n) <$> ints
+-- let solve :: UArray Int Int -> Int
+--     -- IntMapで出現個数を管理しておかないといけない。Setじゃダメ（1敗）
+--     solve arr = go 1 1 IM.empty 0 0
+--       where
+--         go l r m maxLen size
+--           | r > n = maxLen
+--           -- 既にあるなら伸ばせる
+--           -- 列の長さなのでr-lに1を足す必要がある(l自体も含む)
+--           | IM.member (arr ! r) m = go l (r + 1) (IM.insertWith (+) (arr ! r) 1 m) (max maxLen (r - l + 1)) size
+--           -- 新しい値でもK未満なら入る
+--           | size < k = go l (r + 1) (IM.insertWith (+) (arr ! r) 1 m) (max maxLen (r - l + 1)) (size + 1)
+--           | otherwise =
+--               let v = arr ! l
+--                   c = m IM.! v
+--                   (m', size') =
+--                     -- 最後の一つなら削除、2つ以上あるならdecriment
+--                     if c == 1
+--                       then (IM.delete v m, size - 1)
+--                       else (IM.insert v (c - 1) m, size)
+--                in go (l + 1) r m' maxLen size'
+-- print $ solve as
