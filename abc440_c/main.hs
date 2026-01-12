@@ -708,16 +708,19 @@ main = do
     -- 解説より、iとi+2wのマスを塗るのは一致していて、それをまとめて
     -- 2W個のマスが円感情に並んでいて、連続するWマス塗る時のコストの最小の和
     -- accumArrayを利用すると、初期値が0になるので、nが2w以下で出てこない箇所は0のまま
-    let slots = elems $ accumArray @UArray (+) 0 (0, w * 2 - 1) updates
+    let arr = accumArray @UArray (+) 0 (0, w * 2 - 1) updates
           where
             updates = [(i `mod` (w * 2), c) | (i, c) <- zip [1 ..] cs]
+        slots = elems arr
         circle = slots ++ slots
-        init = sum (take w circle)
-        -- w個飛ばしたところは塗らない。zipでw個ずらした配列をくっつけると、追加する値と引く値が作れる
-        (_, res) = L.foldl' step (init, init) (zip (drop w circle) slots)
-          where
-            -- 現在の和と最小値を計算
-            step (cur, minVal) (add, remove) =
-              let cur' = cur + add - remove
-               in (cur', min minVal cur')
-    print res
+        cum = L.scanl1 (+) circle
+        res = zipWith (-) (drop w cum) cum
+    print $ minimum res
+
+-- res = L.foldl' step (init, init) (zip (drop w circle) circle)
+--   where
+--     init = sum (take w slots)
+--     step (cur, minVal) (plus, sub) =
+--       let cur' = cur + plus - sub
+--        in (cur', min minVal cur')
+-- print $ snd res
