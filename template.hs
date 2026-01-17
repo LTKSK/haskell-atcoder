@@ -371,6 +371,21 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
 
 lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
+dfs :: Array Int [Int] -> Int -> UArray Int Bool
+dfs graph start = runST $ do
+  -- ST sのsはスレッドを区別するための幽霊型だそう。STUArrayはMutableなUnboxedの配列
+  -- newArrayだけだとunboxedかboxedかを判断できないので型注釈が必要
+  visited <- newArray (bounds graph) False :: ST s (STUArray s Int Bool)
+  go visited start
+  freeze visited
+  where
+    go visited u = do
+      vis <- readArray visited u
+      unless vis $ do
+        writeArray visited u True
+        -- 隣接ノードを探索
+        forM_ (graph ! u) $ \v -> go visited v
+
 bfs ::
   -- 隣接リストのグラフ
   Array Int [Int] ->
@@ -407,6 +422,67 @@ bfs graph start = runST $ do
               return (q Seq.|> v)
             -- 訪問済みならそのまま
             else return q
+
+buildGridGraphEdges h w =
+  -- 右への辺
+  [[v, v + 1] | y <- [1 .. h], x <- [1 .. w - 1], let v = (y - 1) * w + x]
+    -- 下の辺
+    ++ [[v, v + w] | y <- [1 .. h - 1], x <- [1 .. w], let v = (y - 1) * w + x]
+
+-- 参考: https://atcoder.jp/contests/typical90/submissions/44161342
+bfs01 ::
+  (Ix a) =>
+  (a -> [(a, Int)]) -> -- 隣接する頂点aとそのコスト
+  (a, a) -> -- bounds
+  [a] -> -- 開始地点複数
+  UArray a Int -- 最小のコストを持つArray
+bfs01 nextStates bnds v0s = runSTUArray $ do
+  -- 最小コストをかんがえるので、maxBoundで初期化し、コストの低い方に緩和していく
+  dist <- newArray bnds maxBound
+  forM_ v0s $ \v0 -> writeArray dist v0 0
+  go (Seq.fromList v0s) dist
+  return dist
+  where
+    go Seq.Empty _ = return ()
+    go (v Seq.:<| queue) dist = do
+      d <- readArray dist v
+      queue' <-
+        foldM
+          ( \q (u, w) -> do
+              d' <- readArray dist u
+              -- wがuに遷移した際のコストなので、uへの遷移が現在の値より安く済むなら更新
+              if d + w < d'
+                then do
+                  writeArray dist u (d + w)
+                  -- コストが1なら末尾。0なら先頭に配置
+                  return $ bool (u Seq.<| q) (q Seq.|> u) (w == 1)
+                else return q
+          )
+          queue
+          (nextStates v)
+      go queue' dist
+
+data Dir = U | D | L | R | None deriving (Eq, Ix, Ord, Bounded)
+
+-- グリッド用のラッパー
+bfs01Grid :: UArray (Int, Int) Char -> (Int, Int) -> (Int, Int) -> Int
+bfs01Grid grid start goal = minimum [dist ! (fst goal, snd goal, d) | d <- [U, D, L, R]]
+  where
+    ((r0, c0), (r1, c1)) = bounds grid
+    bnds3d = ((r0, c0, U), (r1, c1, R))
+    v0s = [(fst start, snd start, d) | d <- [U, D, L, R]]
+
+    dist = bfs01 nextStates bnds3d v0s
+
+    nextStates (r, c, dir) =
+      [ ((nr, nc, ndir), cost)
+        | (dr, dc, ndir) <- [(-1, 0, U), (1, 0, D), (0, -1, L), (0, 1, R)],
+          let nr = r + dr
+              nc = c + dc
+              cost = if ndir == dir then 0 else 1,
+          inRange (bounds grid) (nr, nc),
+          grid ! (nr, nc) /= '#'
+      ]
 
 dijkstra ::
   -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
@@ -682,6 +758,9 @@ maxFlowDG (DinicGraph n graph) (s, t) = do
             if pushed == 0 then return total else loopFlow (total + pushed)
 
   loopFlow 0
+
+digitSum :: Int -> Int
+digitSum n = sum $ map digitToInt $ show n
 
 -- 表示系
 yn :: Bool -> String
