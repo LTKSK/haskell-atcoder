@@ -787,10 +787,10 @@ buildNext n s = array ((1, 'a'), (n, 'z')) assocs
     assocs = [((i, c), st ! c) | (i, st) <- zip [1 ..] (init states), c <- ['a' .. 'z']]
 
 buildNextFor :: Int -> String -> Char -> Array Int Int
-buildNextFor n s tc =
+buildNextFor n s targetChar =
   listArray @Array (1, n) $ init $ L.scanr step (n + 1) (zip [1 ..] s)
   where
-    step (i, c) acc = if c == tc then i else acc
+    step (i, c) acc = if c == targetChar then i else acc
 
 main :: IO ()
 main = do
@@ -805,10 +805,8 @@ main = do
         | remaining == 0 = []
         | otherwise =
             -- このループでは末尾にremaining-1個残す
-            -- let range = [(i, s' ! i) | i <- [pos .. n - remaining + 1]]
-            --     -- ここの最小値を高速に求められると嬉しい
-            --     (minPos, (_, minChar)) = L.minimumBy (comparing (fst . snd)) range
             let limit = n - remaining + 1
+                -- 辞書順最小を求めればよいので、headが解決される対象を使えば良い
                 (minChar, minPos) = head [(c, nex ! c ! pos) | c <- ['a' .. 'z'], nex ! c ! pos <= limit]
              in minChar : solve (minPos + 1) (remaining - 1)
 
