@@ -796,18 +796,28 @@ main :: IO ()
 main = do
   [n, k] <- ints
   s <- getLine
-  -- s｢i｣まで見たとき、i以降で文字cが出現する最小のindexが欲しい
+  let e = (maxBound, 0) :: (Int, Int) -- 単位元
+      s' = listArray @UArray (1, n) s
+  seg <- buildSegTree e n
+  forM_ (zip [0 ..] s) $ \(i, c) -> do
+    updateSegTree min seg n i (ord c, i + 1) -- 位置は1basedで記録
+    -- s｢i｣まで見たとき、i以降で文字cが出現する最小のindexが欲しい
   let -- nex = accumArray (flip (:)) [] ('a', 'z') [(c, i) | (i, c) <- zip [1 ..] s] :: Array Char [Int] -- 文字cが出現する位置の昇順のlist
       nex = listArray @Array ('a', 'z') [buildNextFor n s c | c <- ['a' .. 'z']]
-      s' = listArray @Array (1, n) [(ord c, c) | c <- s]
+      -- s' = listArray @Array (1, n) [(ord c, c) | c <- s]
       -- 現在の位置と、残りの文字数
       solve pos remaining
-        | remaining == 0 = []
-        | otherwise =
+        | remaining == 0 = return []
+        | otherwise = do
             -- このループでは末尾にremaining-1個残す
             let limit = n - remaining + 1
-                -- 辞書順最小を求めればよいので、headが解決される対象を使えば良い
-                (minChar, minPos) = head [(c, nex ! c ! pos) | c <- ['a' .. 'z'], nex ! c ! pos <= limit]
-             in minChar : solve (minPos + 1) (remaining - 1)
+            (_, minPos) <- querySegTree min e seg n (pos - 1) limit -- 0indexedなので[pos-1,limit)
+            let minChar = s' ! minPos
+            -- 辞書順最小を求めればよいので、headが解決される対象を使えば良い
+            -- (minChar, minPos) = head [(c, nex ! c ! pos) | c <- ['a' .. 'z'], nex ! c ! pos <= limit]
+            --  in minChar : solve (minPos + 1) (remaining - 1)
+            rest <- solve (minPos + 1) (remaining - 1)
+            return (minChar : rest)
 
-  putStrLn $ solve 1 k
+  res <- solve 1 k
+  putStrLn res
