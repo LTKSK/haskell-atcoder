@@ -796,7 +796,8 @@ main :: IO ()
 main = do
   [n, k] <- ints
   s <- getLine
-  let e = (maxBound, 0) :: (Int, Int) -- 単位元
+  -- 今回のtreeの単位元。タプルの比較での単位元なので、sndの要素は何でもよい。minに投げたらmaxBoundがあるのでsndの値は参照されない
+  let e = (maxBound, 0) :: (Int, Int)
       s' = listArray @UArray (1, n) s
   seg <- buildSegTree e n
   forM_ (zip [0 ..] s) $ \(i, c) -> do
