@@ -369,6 +369,15 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
           -- rは偶奇に関わらず親に向かう。rは含まれない範囲
           go ((l' + 1) `div` 2) (r' `div` 2) acc2
 
+-- indexの値を取得したいとき用
+getSegTree ::
+  (VUM.Unbox a) =>
+  VUM.IOVector a -> -- 木
+  Int -> -- n (要素数)
+  Int -> -- i (0-indexed)
+  IO a
+getSegTree seg n i = VUM.read seg (n + i)
+
 lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 dfs :: Array Int [Int] -> Int -> UArray Int Bool

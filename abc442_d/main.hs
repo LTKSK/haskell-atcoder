@@ -369,6 +369,15 @@ querySegTree op e vec n l r = go (l + n) (r + n) e
           -- rは偶奇に関わらず親に向かう。rは含まれない範囲
           go ((l' + 1) `div` 2) (r' `div` 2) acc2
 
+-- indexの値を取得したいとき用
+getSegTree ::
+  (VUM.Unbox a) =>
+  VUM.IOVector a -> -- 木
+  Int -> -- n (要素数)
+  Int -> -- i (0-indexed)
+  IO a
+getSegTree seg n i = VUM.read seg (n + i)
+
 lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 dfs :: Array Int [Int] -> Int -> UArray Int Bool
@@ -783,25 +792,25 @@ main = do
   [n, q] <- ints
   as <- ints
   seg <- buildSegTree (0 :: Int) n
-  arr <- newArray @IOUArray (1, n) 0 :: IO (IOUArray Int Int)
   forM_ (zip [1 ..] as) $ \(i, v) -> do
     updateSegTree (+) seg n (i - 1) v
-    writeArray arr i v
 
-  forM_ [1 .. q] $ \_ -> do
+  replicateM_ q $ do
     query <- ints
     case query of
       [1, x] -> do
         -- 読み込んでswap
-        let l = x
-            r = x + 1
-        lv <- readArray arr l
-        rv <- readArray arr r
-        writeArray arr l rv
-        writeArray arr r lv
+        let idx = x - 1
+        -- ある座標iの値を取得するのはi,i+1でqueryすれば出来る
+        -- lv <- querySegTree (+) 0 seg n idx (idx + 1)
+        -- rv <- querySegTree (+) 0 seg n (idx + 1) (idx + 2)
 
-        updateSegTree (+) seg n (l - 1) rv
-        updateSegTree (+) seg n (r - 1) lv
+        -- getを作った
+        lv <- getSegTree seg n idx
+        rv <- getSegTree seg n (idx + 1)
+
+        updateSegTree (+) seg n idx rv
+        updateSegTree (+) seg n (idx + 1) lv
       [2, l, r] -> do
         val <- querySegTree (+) 0 seg n (l - 1) r
         print val
