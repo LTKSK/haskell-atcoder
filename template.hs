@@ -25,6 +25,7 @@ import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
 import Data.Ix
 import Data.List qualified as L
+import Data.List.Split
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Ord
@@ -78,6 +79,17 @@ intChar = do
   case ws of
     [n, c] -> case BS.readInt n of
       Just (num, _) -> return (num, BS.head c)
+      Nothing -> error "数字のパースに失敗"
+    _ -> error "フォーマットが違う"
+
+-- Int と残りのByteStringを返す
+intStr :: IO (Int, BS.ByteString)
+intStr = do
+  line <- BS.getLine
+  let ws = BS.words line
+  case ws of
+    [n, s] -> case BS.readInt n of
+      Just (num, _) -> return (num, s)
       Nothing -> error "数字のパースに失敗"
     _ -> error "フォーマットが違う"
 
