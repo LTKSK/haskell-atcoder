@@ -24,6 +24,7 @@ import Data.IORef
 import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
 import Data.Ix
+import Data.List (subsequences)
 import Data.List qualified as L
 import Data.List.Split
 import Data.Map.Strict qualified as M
@@ -100,14 +101,6 @@ getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h int
 getMatChar :: Int -> Int -> IO (UArray (Int, Int) Char)
 -- concatで多次元配列を1次元配列に
 getMatChar h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
-
--- 基数変換。nをbase進数に変換。戻り値はL.foldl' (\acc v -> acc*10+v) 0 とかで畳めば1つの値に出来る
-toBaseDigits :: (Integral a) => a -> a -> [a]
-toBaseDigits base 0 = [0]
-toBaseDigits base n = reverse $ go n
-  where
-    go 0 = []
-    go x = (x `mod` base) : go (x `div` base)
 
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
@@ -807,6 +800,23 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+-- 基数変換
+toBaseDigits :: (Integral a) => a -> a -> [a]
+toBaseDigits base 0 = [0]
+toBaseDigits base n = reverse $ go n
+  where
+    go 0 = []
+    go x = (x `mod` base) : go (x `div` base)
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- integers
+  -- let res = take n $ [0, 2, 4, 6, 8] : [i | i <- [20, 22 ..]]
+  -- print $ [0] : (filter (\arr -> (not . null) arr && head arr /= 0) $ subsequences [0, 2, 4, 6, 8])
+  -- print $ take n $ replicateM 3 [0, 2, 4, 6, 8]
+  -- 単純に2足すとか20足すだと100とかが出てきてめんどい
+  -- 実質5進数では...?
+
+  -- n番目を0から数えるので-1
+  -- print $ (L.foldl' (\acc v -> acc * 10 + v) 0 $ toBaseDigits 5 (n - 1)) * 2
+  print $ (L.foldl' (\acc v -> acc * 10 + (digitToInt v)) 0 $ showIntAtBase 5 intToDigit (n - 1) "") * 2
