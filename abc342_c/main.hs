@@ -25,10 +25,10 @@ import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
 import Data.Ix
 import Data.List qualified as L
+import Data.List.Split
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Ord
-import Data.Ratio
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -37,6 +37,7 @@ import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
+import GHC.IOArray (newIOArray)
 import Numeric (showIntAtBase)
 
 -- デバッグ用
@@ -48,6 +49,9 @@ ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
 integers :: IO [Integer]
 integers = L.unfoldr (BS.readInteger . BS.dropWhile isSpace) <$> BS.getLine
+
+chars :: IO [Char]
+chars = filter (not . isSpace) . BS.unpack <$> BS.getLine
 
 toBinStr :: Int -> String
 toBinStr n = showIntAtBase 2 intToDigit n ""
@@ -82,6 +86,17 @@ intChar = do
       Nothing -> error "数字のパースに失敗"
     _ -> error "フォーマットが違う"
 
+-- Int と残りのByteStringを返す
+intStr :: IO (Int, BS.ByteString)
+intStr = do
+  line <- BS.getLine
+  let ws = BS.words line
+  case ws of
+    [n, s] -> case BS.readInt n of
+      Just (num, _) -> return (num, s)
+      Nothing -> error "数字のパースに失敗"
+    _ -> error "フォーマットが違う"
+
 getMatInt :: Int -> Int -> IO (UArray (Int, Int) Int)
 -- concatで多次元配列を1次元配列に
 getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h ints
@@ -89,6 +104,14 @@ getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h int
 getMatChar :: Int -> Int -> IO (UArray (Int, Int) Char)
 -- concatで多次元配列を1次元配列に
 getMatChar h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
+
+-- 基数変換。nをbase進数に変換。戻り値はL.foldl' (\acc v -> acc*10+v) 0 とかで畳めば1つの値に出来る
+toBaseDigits :: (Integral a) => a -> a -> [a]
+toBaseDigits base 0 = [0]
+toBaseDigits base n = reverse $ go n
+  where
+    go 0 = []
+    go x = (x `mod` base) : go (x `div` base)
 
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
@@ -788,79 +811,28 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
--- 外積を計算するよ～
-cross :: (Int, Int) -> (Int, Int) -> Int
-cross (ax, ay) (bx, by) = ax * by - ay * bx
-
-angleSort :: [(Int, Int)] -> [(Int, Int)]
-angleSort = L.sortBy compareAngleCCW
-
--- compareAngle を外に出す（反時計回り）
-compareAngleCCW :: (Int, Int) -> (Int, Int) -> Ordering
-compareAngleCCW a b
-  -- BoolはFalse<Trueなので、compareを入れ替えている。aが上面だったら前に来るように
-  | isUpper a /= isUpper b = compare (isUpper b) (isUpper a)
-  -- 0より大きかったらa<b。反時計回り
-  | otherwise = compare (cross a b) 0
-  where
-    isUpper (x, y)
-      | y /= 0 = y > 0
-      | otherwise = x > 0
-
--- 時計回り版
-compareAngleCW :: (Int, Int) -> (Int, Int) -> Ordering
-compareAngleCW a b = compareAngleCCW b a
-
--- 参考: https://atcoder.jp/contests/abc442/submissions/72742820
 main :: IO ()
 main = do
-  [n, q] <- ints
-  xys <- replicateM n ints
-  abs <- replicateM q ints
-  -- 各モンスターを「偏角を表す値」に変換してソート
-  -- g で各座標を (象限番号, 傾きのRatio) に変換
-  -- zip ... [1..]: モンスター番号(1-indexed)を付与
-  -- L.sort: 時計回り順にソート（タプルは辞書順比較されるので、象限→傾きの順で比較）
-  -- 例: [(0, 0%1, 1), (1, 1%2, 3), (2, 0%1, 5), ...]
-  let a = L.sort $ zip (map g xys) [1 ..]
-  -- モンスター番号>その偏角値 の配列を作る
-  -- map で (偏角値, モンスター番号) を (モンスター番号, 偏角値) に入れ替え
-  -- これはiからモンスターの偏角取得するのに使う
-  let b = accumArray @Array max (-1, -1) (1, n) $ map (\(x, y) -> (y, x)) a
-  -- (象限,偏角の値)に添え字をあててMapに投げ込む。後勝ちなので、同じ向きの場合一番大きいvalが残る
-  -- ダミーで(-1,-1)を入れて、lookupLTでクラッシュしないようにしているみたいだ。0なので累積和でいうところのl-1相当かな
-  let d = M.fromList $ ((-1, -1), 0) : zip (map fst a) [1 ..]
-  mapM_ print [f x b d n | x <- abs]
+  [n] <- ints
+  s <- getLine
+  [q] <- ints
+  cds <- replicateM q chars
+  -- 道中は関係なくて、最後に置き換えるものがわかりゃええ
+  let res = L.foldl' step init cds
+      init = listArray @UArray ('a', 'z') ['a' .. 'z']
+      step :: UArray Char Char -> [Char] -> UArray Char Char
+      step acc [c, d] = acc // [(c', d) | (c', d') <- assocs acc, d' == c]
+  putStrLn $ map (res !) s
 
--- aからbまで消滅する。消滅する数は、a-1からbまで番号の差。これをmapから求めている
-f [a0, a1] b d n
-  | d0 == d1 = n -- 同じ方向
-  | d0 <= d1 = d1 - d0 -- 区間
-  | otherwise = n + d1 - d0 -- 0をまたぐとき
-  where
-    b0 = b ! a0 -- モンスターAの偏角
-    Just (_, d0) = M.lookupLT b0 d -- b0より小さいキーを取得
-    b1 = b ! a1 -- モンスターBの偏角
-    Just (_, d1) = M.lookupLE b1 d -- b1以下のキーを取得
+-- arr <- newListArray @IOUArray ('a', 'z') ['a' .. 'z']
+-- forM_ cds $ \[c, d] -> do
+--   assocs <- getAssocs arr
+--   let ixs = filter ((== c) . snd) assocs
+--   forM_ ixs $ \(c', _) -> do
+--     writeArray arr c' d
 
-{-# INLINE g #-}
--- atan
-g :: [Int] -> (Int, Ratio Int)
-g [x0, y0]
-  -- 8象限に分解。4つはx軸y軸に平行なやつ。これを分けると軸と被った座標の扱いが楽
-  -- 時計回りなので、x軸0でy軸が+からstart
-  | x == 0 && y > 0 = (0, 0)
-  -- 第一象限ではxが大きいほどx軸に近い（時計回り）。なのでyが大きいほど値が小さくなるように
-  | x > 0 && y > 0 = (1, fromIntegral x % fromIntegral y)
-  | y == 0 && x > 0 = (2, 0)
-  -- 第二象限と第四象限（右下と左上）では、時計回りはxが大きいほど値が小さくなる
-  | x > 0 && y < 0 = (3, fromIntegral (abs y) % fromIntegral x)
-  | x == 0 = (4, 0)
-  | x < 0 && y < 0 = (5, fromIntegral (abs x) % fromIntegral (abs y))
-  | y == 0 = (6, 0)
-  | otherwise = (7, fromIntegral y % fromIntegral (abs x))
-  where
-    -- 同じ向きで距離が違うやつらがいるので正規化
-    a = gcd x0 y0
-    x = div x0 a
-    y = div y0 a
+-- let step acc c = do
+--       c' <- readArray arr c
+--       return (c' : acc)
+-- res <- foldM step "" s
+-- putStrLn $ reverse res

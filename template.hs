@@ -49,6 +49,9 @@ ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 integers :: IO [Integer]
 integers = L.unfoldr (BS.readInteger . BS.dropWhile isSpace) <$> BS.getLine
 
+chars :: IO [Char]
+chars = filter (not . isSpace) . BS.unpack <$> BS.getLine
+
 toBinStr :: Int -> String
 toBinStr n = showIntAtBase 2 intToDigit n ""
 
