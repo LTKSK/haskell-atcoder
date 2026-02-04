@@ -19,7 +19,7 @@ import Data.Bits
 import Data.Bool
 import Data.ByteString.Char8 qualified as BS
 import Data.Char (digitToInt, intToDigit, isSpace, ord)
-import Data.Containers.ListUtils
+import Data.Containers.ListUtils (nubOrd)
 import Data.Heap qualified as H
 import Data.IORef
 import Data.Int (Int64)
@@ -818,4 +818,11 @@ printArray2D arr = do
 
 main :: IO ()
 main = do
-  print ""
+  [n, k] <- ints
+  -- sortして頭から見て、uniqueとって、sumを取る
+  as <- L.filter (<= k) <$> ints
+  let as' = sum $ nubOrd as
+      k' = k * (k + 1) `div` 2
+  -- setでやるのは重すぎる
+  -- let res = sum [i | i <- [1 .. k], not $ S.member i as]
+  print $ k' - as'
