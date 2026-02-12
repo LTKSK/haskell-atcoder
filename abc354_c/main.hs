@@ -811,13 +811,6 @@ divisors n = go 1
       | n `rem` i == 0 = i : (n `div` i) : go (i + 1)
       | otherwise = go (i + 1)
 
--- tuple
-fst3 (a, _, _) = a
-
-snd3 (_, b, _) = b
-
-thd3 (_, _, c) = c
-
 -- 表示系
 yn :: Bool -> String
 yn True = "Yes"
@@ -834,6 +827,36 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+fst3 (a, _, _) = a
+
+snd3 (_, b, _) = b
+
+thd3 (_, _, c) = c
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  acs <- forM [1 .. n] $ \i -> do
+    [a, c] <- ints
+    return (a, c, i)
+  -- 最終的な状態である、いずれも条件を満たさない状態がどんな状態か言えるようになろう
+  -- aでsortした時の並びとcでsortした時の並びが一致している事
+  -- 取り除き方を考えよう
+  -- 愚直にやるのなら、cでsortして先頭から後ろを見ていって、aが大きい
+  -- パワーが高けりゃコストも高くあってほしい
+  -- 後ろの要素を見て、低けりゃremoveでいいのでは？
+  let rev = L.sortBy (comparing (Down . fst3)) acs
+      solve acc [] m = acc
+      solve acc (ac1 : acs) m =
+        let c1 = snd3 ac1
+         in if c1 < m
+              -- costが小さいのでそのまま採用。min更新
+              then solve (ac1 : acc) acs (min c1 m)
+              else solve acc acs m
+      res = L.sort $ map thd3 $ solve [] rev maxBound
+
+  putStrLn $ show $ length res
+  putStrLn $ unwords $ map show res
+
+-- 1WA>直後の要素だけ見てしまった
+-- 2WA>最後の要素の判定漏れ
