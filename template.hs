@@ -274,16 +274,16 @@ doubling ::
   Int ->
   (v -> v) ->
   Array Int (a v v)
-doubling b k f =
+doubling bnd k f =
   listArray (0, maxK) $
     -- iterate'が無限listを返すので必要な分までtake。0から始まるのでmaxK+1
     take (maxK + 1) $
       L.iterate'
         -- ダブリング配列を作っている
         -- 一つ前の場所から2回遷移。その次は2回遷移の2回遷移なので4回遷移。と2^maxK回遷移する
-        (\dp -> genArray b (\v -> dp ! (dp ! v)))
+        (\dp -> genArray bnd (\v -> dp ! (dp ! v)))
         -- 初期値になる配列を作っている。indexにfが適用される。as ! を投げるとasまんまになる
-        (genArray b f)
+        (genArray bnd f)
   where
     maxK = log2LE k
 
