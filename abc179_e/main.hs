@@ -317,60 +317,6 @@ doublingQuery dp k v0 = L.foldl' step v0 [0 .. maxK]
       | testBit k i = (dp ! i) ! v
       | otherwise = v
 
--- | 累積値付きダブリング
--- bnd: 状態空間の範囲
--- k: 移動回数としてありうる最大値
--- f: 1回の状態遷移
--- val: 各状態の値。累積計算の対象で、位置vにいる時の値
--- op: 累積の2項演算
--- 戻り値は実行毎の（遷移先配列、累積値配列）のArray
-doublingWithAccum ::
-  (IArray a v, Ix v) =>
-  (v, v) -> -- bnd
-  Int -> -- k
-  (v -> v) -> -- f 状態遷移
-  (v -> Int) -> -- val
-  (Int -> Int -> Int) ->
-  Array Int (a v v, UArray v Int)
-doublingWithAccum bnd k f val op =
-  listArray (0, maxK) $
-    take (maxK + 1) $
-      L.iterate' step (genArray bnd f, genArray bnd val)
-  where
-    maxK = log2LE k
-    step (dst, acc) =
-      -- 移動の合成
-      ( genArray bnd (\v -> dst ! (dst ! v)),
-        -- 累積着と計算。dstのvとその前のdstのvで2項演算
-        genArray bnd (\v -> (acc ! v) `op` (acc ! (dst ! v)))
-      )
-
--- | 累積値付きダブリングのクエリ
---
--- dp:  doublingWithAccumで事前計算したテーブル
--- k:   移動回数
--- v0:  スタート地点
--- zero: 累積値の単位元（例: 0）
--- op:  累積の2項演算（doublingWithAccumと同じもの）
---
--- 返り値: (k回遷移した先, 道中の累積値)
-doublingWithAccumQuery ::
-  (IArray a v, Ix v) =>
-  Array Int (a v v, UArray v Int) -> -- dp
-  Int -> -- k
-  v -> -- start
-  Int -> -- zero
-  (Int -> Int -> Int) -> -- op
-  (v, Int)
-doublingWithAccumQuery dp k v0 zero op = L.foldl' step (v0, zero) [0 .. maxK]
-  where
-    (_, maxK) = bounds dp
-    step (v, total) i
-      | testBit k i =
-          let (dst, acc) = dp ! i
-           in (dst ! v, total `op` (acc ! v))
-      | otherwise = (v, total)
-
 -- 要素の出現回数をカウントする
 -- toBucket (1, 5) [1, 2, 2, 3] => array [(1,1), (2,2), (3,1), (4,0), (5,0)]
 toBucket :: (Ix i) => (i, i) -> [i] -> UArray i Int
@@ -923,6 +869,66 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+-- | 累積値付きダブリング
+-- bnd: 状態空間の範囲
+-- k: 移動回数としてありうる最大値
+-- f: 1回の状態遷移
+-- val: 各状態の値。累積計算の対象で、位置vにいる時の値
+-- op: 累積の2項演算
+-- 戻り値は実行毎の（遷移先配列、累積値配列）のArray
+doublingWithAccum ::
+  (IArray a v, Ix v) =>
+  (v, v) -> -- bnd
+  Int -> -- k
+  (v -> v) -> -- f 状態遷移
+  (v -> Int) -> -- val
+  (Int -> Int -> Int) ->
+  Array Int (a v v, UArray v Int)
+doublingWithAccum bnd k f val op =
+  listArray (0, maxK) $
+    take (maxK + 1) $
+      L.iterate' step (genArray bnd f, genArray bnd val)
+  where
+    maxK = log2LE k
+    step (dst, acc) =
+      -- 移動の合成
+      ( genArray bnd (\v -> dst ! (dst ! v)),
+        -- 累積着と計算。dstのvとその前のdstのvで2項演算
+        genArray bnd (\v -> (acc ! v) `op` (acc ! (dst ! v)))
+      )
+
+-- | 累積値付きダブリングのクエリ
+--
+-- dp:  doublingWithAccumで事前計算したテーブル
+-- k:   移動回数
+-- v0:  スタート地点
+-- zero: 累積値の単位元（例: 0）
+-- op:  累積の2項演算（doublingWithAccumと同じもの）
+--
+-- 返り値: (k回遷移した先, 道中の累積値)
+doublingWithAccumQuery ::
+  (IArray a v, Ix v) =>
+  Array Int (a v v, UArray v Int) -> -- dp
+  Int -> -- k
+  v -> -- start
+  Int -> -- zero
+  (Int -> Int -> Int) -> -- op
+  (v, Int)
+doublingWithAccumQuery dp k v0 zero op = L.foldl' step (v0, zero) [0 .. maxK]
+  where
+    (_, maxK) = bounds dp
+    step (v, total) i
+      | testBit k i =
+          let (dst, acc) = dp ! i
+           in (dst ! v, total `op` (acc ! v))
+      | otherwise = (v, total)
+
 main :: IO ()
 main = do
-  print ""
+  [n, x, m] <- ints
+  let move v = (v * v) `mod` m
+      op = (+)
+      -- mod mなので値の範囲は0~m-1
+      d = doublingWithAccum @UArray (0, m - 1) n move id op
+      (_, total) = doublingWithAccumQuery d n x 0 op
+  print total
