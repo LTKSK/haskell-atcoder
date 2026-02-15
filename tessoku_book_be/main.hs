@@ -162,30 +162,48 @@ queryDoubling dp start k = foldl move start [0 .. maxK]
       | testBit k bit = dp ! (bit, pos)
       | otherwise = pos
 
+log2LE :: Int -> Int
+log2LE k = floor (logBase 2 (fromIntegral k) :: Double)
+
+-- b: 状態空間の範囲、k: k回分、f: 1回の状態遷移(arr ! とかを投げよう)
+doubling ::
+  (IArray a v, Ix v) =>
+  (v, v) ->
+  Int ->
+  (v -> v) ->
+  Array Int (a v v)
+doubling b k f =
+  listArray (0, maxK) $
+    -- iterate'が無限listを返すので必要な分までtake。0から始まるのでmaxK+1
+    take (maxK + 1) $
+      L.iterate'
+        -- ダブリング配列を作っている
+        -- 一つ前の場所から2回遷移。その次は2回遷移の2回遷移なので4回遷移。と2^maxK回遷移する
+        (\dp -> genArray b (\v -> dp ! (dp ! v)))
+        -- 初期値になる配列を作っている。indexにfが適用される。as ! を投げるとasまんまになる
+        (genArray b f)
+  where
+    maxK = log2LE k
+
+-- k: 移動回数
+-- v0: スタート地点
+-- k回はkを2進数に変換して、bitが1の時の値を足し合わせると作れるので、
+-- testBitで0basedのi番目のbitが立っているかをチェック
+doublingQuery :: (IArray a v, Ix v) => Array Int (a v v) -> Int -> v -> v
+doublingQuery dp k v0 = L.foldl' step v0 [0 .. maxK]
+  where
+    (_, maxK) = bounds dp
+    step v i
+      | testBit k i = (dp ! i) ! v
+      | otherwise = v
+
 main :: IO ()
 main = do
   [n, q] <- ints
-  as <- ints
-  -- 2^30 が大体10億を超えるので、今回のyの制約10^9には足りる
-  -- dp[2^i日後][今いる穴]=移動先
-  let dp = listArray ((0, 1), (29, n)) [step k i | k <- [0 .. 29], i <- [1 .. n]] :: Array (Int, Int) Int
-      as' = listArray @UArray (1, n) as
-      step :: Int -> Int -> Int
-      step 0 i = as' ! i -- 1回目の移動先はa_i
-      step k i =
-        -- k_iをk_{i-1}から求める2^k_i = 2^{k_i-1} + 2^{k_i-1}
-        let mid = dp ! (k - 1, i)
-         in dp ! (k - 1, mid)
+  as <- listArray @UArray (1, n) <$> ints
 
-      query dp start k = foldl move start [0 .. maxK]
-        where
-          ((_, _), (maxK, _)) = bounds dp
-          move pos bit
-            -- kのbitが1の時だけ値を取得すればよい。bitが0..maxK
-            | testBit k bit = dp ! (bit, pos)
-            -- それ以外はそのまま
-            | otherwise = pos
-
+  let d = doubling @UArray (bounds as) (10 ^ 9) (as !)
   replicateM_ q $ do
     [x, y] <- ints
-    print $ query dp x y
+    let res = doublingQuery d y x
+    print res

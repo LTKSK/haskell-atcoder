@@ -263,29 +263,46 @@ nCr n r = fact n / (fact r * fact (n - r))
 comb :: Int -> Int -> Int
 comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
 
--- buildDoubling n next: n要素、next!iが要素iの次の要素
-buildDoubling :: Int -> Array Int Int -> Int -> Array (Int, Int) Int
-buildDoubling n next maxK = dp
+-- log2 kの値を返す
+log2LE :: Int -> Int
+log2LE k = floor (logBase 2 (fromIntegral k) :: Double)
+
+-- b: 状態空間の範囲、k: あり得る移動回数の最大値、f: 1回の状態遷移(arr ! とかを投げよう)
+doubling ::
+  (IArray a v, Ix v) =>
+  (v, v) ->
+  Int ->
+  (v -> v) ->
+  Array Int (a v v)
+doubling b k f =
+  listArray (0, maxK) $
+    -- iterate'が無限listを返すので必要な分までtake。0から始まるのでmaxK+1
+    take (maxK + 1) $
+      L.iterate'
+        -- ダブリング配列を作っている
+        -- 一つ前の場所から2回遷移。その次は2回遷移の2回遷移なので4回遷移。と2^maxK回遷移する
+        (\dp -> genArray b (\v -> dp ! (dp ! v)))
+        -- 初期値になる配列を作っている。indexにfが適用される。as ! を投げるとasまんまになる
+        (genArray b f)
   where
-    dp = listArray ((0, 1), (maxK, n)) [step k i | k <- [0 .. maxK], i <- [1 .. n]]
-    step 0 i = next ! i
-    step k i =
-      let mid = dp ! (k - 1, i)
-       in dp ! (k - 1, mid)
+    maxK = log2LE k
+
+-- k: 移動回数
+-- v0: スタート地点
+-- k回はkを2進数に変換して、bitが1の時の値を足し合わせると作れるので、
+-- testBitで0basedのi番目のbitが立っているかをチェック
+doublingQuery :: (IArray a v, Ix v) => Array Int (a v v) -> Int -> v -> v
+doublingQuery dp k v0 = L.foldl' step v0 [0 .. maxK]
+  where
+    (_, maxK) = bounds dp
+    step v i
+      | testBit k i = (dp ! i) ! v
+      | otherwise = v
 
 -- 要素の出現回数をカウントする
 -- toBucket (1, 5) [1, 2, 2, 3] => array [(1,1), (2,2), (3,1), (4,0), (5,0)]
 toBucket :: (Ix i) => (i, i) -> [i] -> UArray i Int
 toBucket b xs = accumArray @UArray (+) (0 :: Int) b $ map (,1) xs
-
--- k回移動後の位置を求める
-queryDoubling :: Array (Int, Int) Int -> Int -> Int -> Int
-queryDoubling dp start k = foldl move start [0 .. maxK]
-  where
-    ((_, _), (maxK, _)) = bounds dp
-    move pos bit
-      | testBit k bit = dp ! (bit, pos)
-      | otherwise = pos
 
 csum2 :: UArray (Int, Int) Int -> UArray (Int, Int) Int
 csum2 as = runSTUArray $ do
