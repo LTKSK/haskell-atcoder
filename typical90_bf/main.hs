@@ -702,27 +702,71 @@ printArray2D arr = do
 digitSum :: Int -> Int
 digitSum n = sum $ map digitToInt $ show n
 
+-- log2 kの値を返す
+log2LE :: Int -> Int
+log2LE k = floor (logBase 2 (fromIntegral k) :: Double)
+
+-- b: 状態空間の範囲、k: あり得る移動回数の最大値、f: 1回の状態遷移(arr ! とかを投げよう)
+doubling ::
+  (IArray a v, Ix v) =>
+  (v, v) ->
+  Int ->
+  (v -> v) ->
+  Array Int (a v v)
+doubling bnd k f =
+  listArray (0, maxK) $
+    -- iterate'が無限listを返すので必要な分までtake。0から始まるのでmaxK+1
+    take (maxK + 1) $
+      L.iterate'
+        -- ダブリング配列を作っている
+        -- 一つ前の場所から2回遷移。その次は2回遷移の2回遷移なので4回遷移。と2^maxK回遷移する
+        (\dp -> genArray bnd (\v -> dp ! (dp ! v)))
+        -- 初期値になる配列を作っている。indexにfが適用される。as ! を投げるとasまんまになる
+        (genArray bnd f)
+  where
+    maxK = log2LE k
+
+-- k: 移動回数
+-- v0: スタート地点
+-- k回はkを2進数に変換して、bitが1の時の値を足し合わせると作れるので、
+-- testBitで0basedのi番目のbitが立っているかをチェック
+doublingQuery :: (IArray a v, Ix v) => Array Int (a v v) -> Int -> v -> v
+doublingQuery dp k v0 = L.foldl' step v0 [0 .. maxK]
+  where
+    (_, maxK) = bounds dp
+    step v i
+      | testBit k i = (dp ! i) ! v
+      | otherwise = v
+
 main :: IO ()
 main = do
   [n, k] <- ints
-  arr <- newArray @IOUArray (0, 99999) (-1) :: IO (IOUArray Int Int)
-  let next x = (x + digitSum x) `mod` 100000
-      -- サイクルの開始した値、それまでのstep数、現在のstep数を返す
-      -- サイクル開始時のstep数をarrで管理しているので、breakした時にcycleの長さが計算できる
-      solve x step = do
-        vis <- readArray arr x
-        if vis /= -1
-          then return (x, vis, step) -- xに過去到達したのはvisの時点
-          else do
-            writeArray arr x step
-            solve (next x) (step + 1)
-  (cycleStart, cycleStartStep, curStep) <- solve n 0
-  let res
-        | k < cycleStartStep = iterate next n !! k
-        | otherwise =
-            let cycleLen = (curStep - cycleStartStep)
-                -- cycleが始まった位置からの残りの遷移回数がmodの左辺
-                pos = (k - cycleStartStep) `mod` cycleLen
-             in -- 実際に遷移させてチェック
-                iterate next cycleStart !! pos
+  let move x =
+        let y = digitSum x
+            z = (x + y) `mod` 100000
+         in z
+      d = doubling @UArray (0, 10 ^ 5 - 1) k move
+      res = doublingQuery d k n
   print res
+
+-- arr <- newArray @IOUArray (0, 99999) (-1) :: IO (IOUArray Int Int)
+-- let next x = (x + digitSum x) `mod` 100000
+--     -- サイクルの開始した値、それまでのstep数、現在のstep数を返す
+--     -- サイクル開始時のstep数をarrで管理しているので、breakした時にcycleの長さが計算できる
+--     solve x step = do
+--       vis <- readArray arr x
+--       if vis /= -1
+--         then return (x, vis, step) -- xに過去到達したのはvisの時点
+--         else do
+--           writeArray arr x step
+--           solve (next x) (step + 1)
+-- (cycleStart, cycleStartStep, curStep) <- solve n 0
+-- let res
+--       | k < cycleStartStep = iterate next n !! k
+--       | otherwise =
+--           let cycleLen = (curStep - cycleStartStep)
+--               -- cycleが始まった位置からの残りの遷移回数がmodの左辺
+--               pos = (k - cycleStartStep) `mod` cycleLen
+--            in -- 実際に遷移させてチェック
+--               iterate next cycleStart !! pos
+-- print res
