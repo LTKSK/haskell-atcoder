@@ -376,44 +376,6 @@ doublingWithAccumQuery dp k v0 zero op = L.foldl' step (v0, zero) [0 .. maxK]
 toBucket :: (Ix i) => (i, i) -> [i] -> UArray i Int
 toBucket b xs = accumArray @UArray (+) (0 :: Int) b $ map (,1) xs
 
--- リストから1つ選んで (選んだ要素, 残り) を返す
--- 同じ値の要素は1回だけ選ぶ（重複スキップ）
--- 例: pickUniq "aab" → [('a',"ab"), ('b',"aa")]
---     ※ 'a'が2つあるが、選ぶのは1回だけ
--- 例: pickUniq "ab"  → [('a',"b"), ('b',"a")]
-pickUniq :: (Eq a) => [a] -> [(a, [a])]
-pickUniq [] = []
-pickUniq (x : xs)
-  -- rest = 「xを飛ばして、xs以降から選ぶ全パターン」にxを残りに戻したもの
-  -- 例: x='a', xs="ab"
-  --     rest = pickUniq "ab" の結果に 'a' を残りの先頭に戻す
-  --          = [('a',"ab"), ('b',"aa")]
-  -- ここで x='a' が rest の選択肢にすでにあるかチェック
-  -- あればスキップ（重複防止）、なければ追加
-  | x `elem` map fst rest = rest
-  -- 例: pickUniq "aab" で x='a', rest に既に ('a',...) がある → スキップ
-  | otherwise = (x, xs) : rest
-  where
-    -- 例: pickUniq "ab" で x='a', rest に 'a' がない → (x, xs) を追加
-
-    -- xsから選ぶ全パターンに、xを残りリストの先頭に戻す
-    -- 例: x='a', pickUniq "b" = [('b',"")]
-    --     → [('b',"a")]  ※ 'b'を選んだ残りに'a'を戻す
-    rest = map (\(y, ys) -> (y, x : ys)) (pickUniq xs)
-
--- `ソート済み`リストから重複なし順列を生成
--- 例: permsUniq "aab" → ["aab", "aba", "baa"]
--- 例: permsUniq "abc" → ["abc", "acb", "bac", "bca", "cab", "cba"]
-permsUniq :: (Ord a) => [a] -> [[a]]
-permsUniq [] = [[]] -- 空リストの順列は空リスト1つだけ
-permsUniq xs = do
-  -- 先頭の1文字を重複なく選ぶ
-  -- 例: xs="aab" → (y,ys) は ('a',"ab") と ('b',"aa") の2通り
-  (y, ys) <- pickUniq xs
-  -- 残りで再帰して、選んだ文字を先頭にくっつける
-  -- 例: y='a', ys="ab" → permsUniq "ab" = ["ab","ba"] → ["aab","aba"]
-  map (y :) (permsUniq ys)
-
 csum2 :: UArray (Int, Int) Int -> UArray (Int, Int) Int
 csum2 as = runSTUArray $ do
   -- 境界処理簡略化でboundsを1行1列追加で用意して初期化
@@ -961,6 +923,57 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+-- リストから1つ選んで (選んだ要素, 残り) を返す
+-- 同じ値の要素は1回だけ選ぶ（重複スキップ）
+-- 例: pickUniq "aab" → [('a',"ab"), ('b',"aa")]
+--     ※ 'a'が2つあるが、選ぶのは1回だけ
+-- 例: pickUniq "ab"  → [('a',"b"), ('b',"a")]
+pickUniq :: (Eq a) => [a] -> [(a, [a])]
+pickUniq [] = []
+pickUniq (x : xs)
+  -- rest = 「xを飛ばして、xs以降から選ぶ全パターン」にxを残りに戻したもの
+  -- 例: x='a', xs="ab"
+  --     rest = pickUniq "ab" の結果に 'a' を残りの先頭に戻す
+  --          = [('a',"ab"), ('b',"aa")]
+  -- ここで x='a' が rest の選択肢にすでにあるかチェック
+  -- あればスキップ（重複防止）、なければ追加
+  | x `elem` map fst rest = rest
+  -- 例: pickUniq "aab" で x='a', rest に既に ('a',...) がある → スキップ
+  | otherwise = (x, xs) : rest
+  where
+    -- 例: pickUniq "ab" で x='a', rest に 'a' がない → (x, xs) を追加
+
+    -- xsから選ぶ全パターンに、xを残りリストの先頭に戻す
+    -- 例: x='a', pickUniq "b" = [('b',"")]
+    --     → [('b',"a")]  ※ 'b'を選んだ残りに'a'を戻す
+    rest = map (\(y, ys) -> (y, x : ys)) (pickUniq xs)
+
+-- `ソート済み`リストから重複なし順列を生成
+-- 例: permsUniq "aab" → ["aab", "aba", "baa"]
+-- 例: permsUniq "abc" → ["abc", "acb", "bac", "bca", "cab", "cba"]
+permsUniq :: (Ord a) => [a] -> [[a]]
+permsUniq [] = [[]] -- 空リストの順列は空リスト1つだけ
+permsUniq xs = do
+  -- 先頭の1文字を重複なく選ぶ
+  -- 例: xs="aab" → (y,ys) は ('a',"ab") と ('b',"aa") の2通り
+  (y, ys) <- pickUniq xs
+  -- 残りで再帰して、選んだ文字を先頭にくっつける
+  -- 例: y='a', ys="ab" → permsUniq "ab" = ["ab","ba"] → ["aab","aba"]
+  map (y :) (permsUniq ys)
+
 main :: IO ()
 main = do
-  print ""
+  [n, k] <- ints
+  s <- getLine
+  -- nとkはどちらも小さい
+  -- 気張って全探索
+  -- k個の選び方を全探索して、sを並び替える方法の総和から、k個選んだ時に回文になるものを省く
+  -- 選んだ結果はreverseして比較するのが楽
+  let res =
+        length
+          [ ()
+            | p <- permsUniq (L.sort s),
+              let subs = [s' | i <- [0 .. n - k], let s' = take k (drop i p)],
+              not $ any (\s' -> s' == reverse s') subs
+          ]
+  print res
