@@ -263,6 +263,12 @@ nCr n r = fact n / (fact r * fact (n - r))
 comb :: Int -> Int -> Int
 comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
 
+-- 引数各xについて1..xまでの要素の直積を作る
+-- rangeProduct [3,1,2]
+-- [[1,1,1],[1,1,2],[2,1,1],[2,1,2],[3,1,1],[3,1,2]]
+rangeProduct :: [Int] -> [[Int]]
+rangeProduct xs = mapM (\x -> [1 .. x]) xs
+
 -- log2 kの値を返す
 log2LE :: Int -> Int
 -- log2LE k = floor (logBase 2 (fromIntegral k) :: Double)
