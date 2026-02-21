@@ -971,55 +971,43 @@ printArray2D arr = do
 main :: IO ()
 main = do
   [t] <- ints
-  -- 一旦一つのケースについてのみ考える
   replicateM_ t $ do
     [n, d] <- ints
     as <- ints
     bs <- ints
-    -- 賞味期限がない場合、zipして、a足したものからbを引いていけばよい
-    -- 賞味期限としてd日後をどう考えるか
-    -- いもすっぽく考えられるか？と思ったけど、卵を古いものから減らしていくんだよな
-    -- 工夫したデータの持ちかたになりそう
-    -- day日目に削除を予約する処理を綺麗に書きたい...
-    -- queueで頑張るとpopにnかかるからダメなはず
-    -- bを0日目に消える値、aをd日後に消える値として考える？
-
-    -- let res = L.foldl' step ini $ zip3 as bs [1 .. n]
-    --     ini = (0, 0, 0, Seq.fromList (replicate d 0))
-    --     -- setかなにかで、day日目に消える値delaを保存
-    --     -- day日目になった時に、既に削除済みの値（bの累積）がdelaよりちいさかったらdela引いたことになるよう追加で削除
-    --     step :: (Int, Int, Int, Seq.Seq Int) -> (Int, Int, Int) -> (Int, Int, Int, Seq.Seq Int)
-    --     step (eggs, asum, bsum, s) (a, b, i) = (eggs', asum', bsum', s' Seq.|> a)
-    --       where
-    --         (av Seq.:< s') = Seq.viewl s
-    --         -- 今日までに消え切らないといけないa
-    --         asum' = asum + av
-    --         -- bsumが今日までに消えた個数
-    --         bsum' = bsum + b
-    --         ex = max 0 (asum' - bsum)
-    --         del = b + ex
-    --         !_ = dbg (asum', bsum, bsum')
-    --         -- 最初のd日目に消えないといけないaについてはわかった
-    --         -- 次のa'を消すとき、どう考えるか
-    --         -- 演算としてはこれで遷移していく
-    --         eggs' = eggs + a - del
     let step q (i, a, b) =
-          let q1 = q Seq.|> (i, a)
-              q2 = consume b q1
-              q3 = expire i d q2
-           in q3
-        consume 0 q = q
-        consume b q = case Seq.viewl q of
+          let q1 = q Seq.>< Seq.fromList (replicate a i)
+              q2 = con b q1 i
+           in q2
+        con 0 q i = case Seq.viewl q of
           Seq.EmptyL -> q
-          (day, cnt) Seq.:< rest
-            | cnt <= b -> consume (b - cnt) rest
-            | otherwise -> (day, cnt - b) Seq.<| rest
-        expire i d q = case Seq.viewl q of
+          h Seq.:< rest ->
+            if h == i - d
+              then con 0 rest i
+              else q
+        con b q i = case Seq.viewl q of
           Seq.EmptyL -> q
-          (day, cnt) Seq.:< rest
-            | i - day + 1 > d -> expire i d rest
-            | otherwise -> q
-        final = L.foldl' step Seq.empty (zip3 [1 .. n] as bs)
-        res = sum [cnt | (_, cnt) <- toList final]
-
+          h Seq.:< rest -> con (b - 1) rest i
+        res = length $ L.foldl' step Seq.empty (zip3 [1 .. n] as bs)
     print res
+
+-- let step q (i, a, b) =
+--       let -- 朝: 仕入れ
+--           q1 = q Seq.|> (i, a)
+--           -- 昼: 古い順にb個消費
+--           q2 = consume b q1
+--           -- 夜: D日以上経過した卵を処分
+--           q3 = expire i d q2
+--       in q3
+--     consume 0 q = q
+--     consume b q = case Seq.viewl q of
+--       Seq.EmptyL -> q
+--       (day, cnt) Seq.:< rest
+--         | cnt <= b  -> consume (b - cnt) rest
+--         | otherwise -> (day, cnt - b) Seq.<| rest
+--     expire i d q = case Seq.viewl q of
+--       Seq.EmptyL -> q
+--       (day, cnt) Seq.:< rest
+--         | i - day + 1 > d -> expire i d rest
+--         | otherwise       -> q
+--     final = L.foldl' step Seq.empty (zip3 [1..n] as bs)
