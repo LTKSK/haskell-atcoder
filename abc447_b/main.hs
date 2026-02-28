@@ -970,9 +970,11 @@ printArray2D arr = do
 main :: IO ()
 main = do
   s <- getLine
-  let g = L.group $ L.sort s
-      maxLen = maximum (map length g)
-      ws = S.fromList $ map head $ filter (\cs -> length cs == maxLen) g
-      res = [c | c <- s, not $ S.member c ws]
-
+  let arr = accumArray @UArray (+) 0 ('a', 'z') [(c, 1 :: Int) | c <- s]
+      maxC = maximum (elems arr)
+      res = [c | c <- s, arr ! c /= maxC]
+  -- let g = L.group $ L.sort s
+  --     maxLen = maximum (map length g)
+  --     ws = S.fromList $ map head $ filter (\cs -> length cs == maxLen) g
+  --     res = [c | c <- s, not $ S.member c ws]
   putStrLn res
