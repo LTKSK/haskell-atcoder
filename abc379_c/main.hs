@@ -39,6 +39,7 @@ import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
 import Numeric (showIntAtBase)
+import Text.Printf (vFmt)
 
 -- デバッグ用
 dbg :: (Show a) => a -> ()
@@ -197,24 +198,6 @@ shakutori p op invOp identity as = go as as 0 identity
       | otherwise = len : (go ls rrs (len - 1) (invOp res l))
     go _ _ _ _ = []
 
--- ソートして重複除去し、ユニークな要素数とランク配列を返す
--- base: ランクの開始番号（1なら1始まり、0なら0始まり）
--- xs: 対象のIntリスト
--- 戻り値: (ランク配列, ユニーク要素数)
---   ランク配列: 元の値をキー、圧縮後のランクを値とする配列
-uniqueCount :: (IArray arr Int) => Int -> [Int] -> (arr Int Int, Int)
-uniqueCount base xs = (rankArr, VU.length uniqVec)
-  where
-    -- Unboxed Vectorに変換してイントロソート
-    sorted = VU.modify VAI.sort (VU.fromList xs)
-    -- 隣接する重複要素を削除
-    uniqVec = VU.uniq sorted
-    -- 各ユニーク要素にbaseから連番を振った配列
-    rankArr =
-      array
-        (VU.head uniqVec, VU.last uniqVec)
-        [(v, i) | (i, v) <- zip [base ..] (VU.toList uniqVec)]
-
 -- もじゅーら計算
 modulus :: Int
 modulus = 1_000_000_007
@@ -225,7 +208,6 @@ subMod x y = (x - y) `mod` modulus
 mulMod x y = (x * y) `mod` modulus
 
 -- 高速べき乗
--- aのb乗をmでmodしたものを高速に求める
 powMod :: Int -> Int -> Int -> Int
 powMod a b m
   | b == 0 = 1
@@ -988,4 +970,35 @@ printArray2D arr = do
 
 main :: IO ()
 main = do
-  print ""
+  [n, m] <- ints
+  xs <- ints
+  as <- ints
+  let xas = L.sortBy (comparing fst) $ zip xs as
+      total = sum as
+      -- 条件判定
+      -- 石の総数がn個じゃない
+      -- 各xのマスまでを埋められるか
+      check =
+        foldM
+          ( \acc (x, a) ->
+              -- accに現在までの石の個数。xが7だとしたら、ここまでに6個はないといけない
+              if acc < x - 1
+                then Nothing
+                else Just (acc + a)
+          )
+          0
+          xas
+      -- 最終的に石についている番号の合計。1..nの等差数列
+      idealSum = n * (n + 1) `div` 2
+      initialSum = sum [x * a | (x, a) <- xas]
+      res = idealSum - initialSum
+  print $ case check of
+    Nothing -> -1
+    Just acc | acc /= n -> -1
+    _ -> res
+
+-- WA: accumArrayに大きいbnds、10^9とかを投げ込むとMLEする
+-- WA: 右から見ようとして、計算式作れずに詰まった
+-- ポイント、操作の最小回数と、そもそも配置できるかを求めることが必要
+-- ポイント、操作回数、n(n+1)/2が、全石の最終位置の総和。全石の初期位置の総和はxi*aiのsum(全部同じ初期位置と考える)
+-- 操作一回で何が変わるのかを抽象化するのが重要。今回は石の位置の番号が変わるだけなので、途中経過が不要
