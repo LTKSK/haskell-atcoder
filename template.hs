@@ -24,6 +24,7 @@ import Data.Heap qualified as H
 import Data.IORef
 import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
+import Data.IntSet qualified as IS
 import Data.Ix
 import Data.List qualified as L
 import Data.List.Split
