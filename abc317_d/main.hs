@@ -964,7 +964,29 @@ divisors n = go 1
       | n `rem` i == 0 = i : (n `div` i) : go (i + 1)
       | otherwise = go (i + 1)
 
--- dp
+-- tuple
+fst3 (a, _, _) = a
+
+snd3 (_, b, _) = b
+
+thd3 (_, _, c) = c
+
+-- 表示系
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
+printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
+printArray2D arr = do
+  let ((r0, c0), (r1, c1)) = bounds arr
+      rows = range (r0, r1)
+      cols = range (c0, c1)
+  forM_ rows $ \i ->
+    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
+
 accumArrayDP ::
   ( IArray a e,
     Ix ix,
@@ -992,29 +1014,24 @@ accumArrayDP next relax ini bnds v0s xs = do
         -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
         concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
 
--- tuple
-fst3 (a, _, _) = a
-
-snd3 (_, b, _) = b
-
-thd3 (_, _, c) = c
-
--- 表示系
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
-
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
-
-printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
-printArray2D arr = do
-  let ((r0, c0), (r1, c1)) = bounds arr
-      rows = range (r0, r1)
-      cols = range (c0, c1)
-  forM_ rows $ \i ->
-    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
-
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  czs <- replicateM n $ do
+    [x, y, z] <- ints
+    let diff = (x + y) `div` 2 + 1
+        cost = max 0 (diff - x)
+    return (cost, z)
+
+  let zMax = sum $ map snd czs
+      requiredSeats = zMax `div` 2 + 1
+      res = accumArrayDP @UArray next relax ini bnds v0s czs
+      next (seats, v) (cost, zi)
+        | v == ini = []
+        -- minでrequiredSeatsにしておけば、cost最小のものに緩和する
+        | otherwise = [(seats, v), (min requiredSeats (seats + zi), v + cost)]
+      ini = 10 ^ 18
+      v0s = [(0, 0)]
+      relax = min
+      bnds = (0, requiredSeats) -- 0~勝利に必要な議席数
+  print $ res ! requiredSeats
