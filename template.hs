@@ -216,10 +216,6 @@ uniqueCount base xs = (rankArr, VU.length uniqVec)
         (VU.head uniqVec, VU.last uniqVec)
         [(v, i) | (i, v) <- zip [base ..] (VU.toList uniqVec)]
 
--- もじゅーら計算
-modulus :: Int
-modulus = 1_000_000_007
-
 addMod, subMod, mulMod :: Int -> Int -> Int
 addMod x y = (x + y) `mod` modulus
 subMod x y = (x - y) `mod` modulus
@@ -1014,6 +1010,10 @@ printArray2D arr = do
       cols = range (c0, c1)
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
+
+-- もじゅーら計算
+modulus :: Int
+modulus = 1_000_000_007
 
 main :: IO ()
 main = do
