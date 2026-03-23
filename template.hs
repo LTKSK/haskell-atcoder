@@ -87,6 +87,16 @@ intChar = do
       Nothing -> error "数字のパースに失敗"
     _ -> error "フォーマットが違う"
 
+intIntChar :: IO (Int, Int, Char)
+intIntChar = do
+  line <- BS.getLine
+  let ws = BS.words line
+  case ws of
+    [a, b, c] -> case (BS.readInt a, BS.readInt b) of
+      (Just (x, _), Just (y, _)) -> return (x, y, BS.head c)
+      _ -> error "数字のパースに失敗"
+    _ -> error "formatが違う"
+
 -- Int と残りのByteStringを返す
 intStr :: IO (Int, BS.ByteString)
 intStr = do
@@ -558,6 +568,8 @@ getSegTree seg n i = VUM.read seg (n + i)
 
 lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
+around = [(0, -1), (0, 1), (-1, 0), (1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+
 dfs :: Array Int [Int] -> Int -> UArray Int Bool
 dfs graph start = runST $ do
   -- ST sのsはスレッドを区別するための幽霊型だそう。STUArrayはMutableなUnboxedの配列
@@ -972,7 +984,7 @@ accumArrayDP ::
   ) =>
   ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
   (e -> e' -> e) -> -- relax
-  e -> -- 初期値
+  e -> -- 初期値。遷移が来ない時の値
   (ix, ix) -> -- 状態空間の上界と下界
   [(ix, e')] -> -- 開始時点の状態
   t x -> -- 入力
