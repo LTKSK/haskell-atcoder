@@ -638,28 +638,57 @@ accumDP f op initial (l, u) v0s xs = do
         -- filter (inRange (bounds dp) . fst で遷移先の範囲チェック
         concatMap (filter (inRange (bounds dp) . fst) . (`f` x)) (assocs dp)
 
+-- dp
+accumArrayDP ::
+  ( IArray a e,
+    Ix ix,
+    Eq e,
+    Show e,
+    Show ix,
+    Show (a ix e),
+    Foldable t
+  ) =>
+  ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
+  (e -> e' -> e) -> -- relax
+  e -> -- 初期値。遷移が来ない時の値
+  (ix, ix) -> -- 状態空間の上界と下界
+  [(ix, e')] -> -- 開始時点の状態
+  t x -> -- 入力
+  a ix e -- 出力はArrayまたはUArray
+accumArrayDP next relax ini bnds v0s xs = do
+  let dp = accumArray relax ini bnds v0s
+   in L.foldl' transition dp xs
+  where
+    transition dp x =
+      accumArray relax ini bnds $
+        -- dpの各添え字と値に対してnextを実行。この際入力のxが第二引数になる
+        -- なのでdpの現在の状態に対して(xを選ぶ、xを選ばない)とそれぞれ決めた時の遷移が行われる
+        -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
+        concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
+
 main :: IO ()
 main = do
   [n, k, p] <- ints
   xs <- replicateM n ints
-  -- c, a1,a2..akがあるけど、足りないところは+0ととらえて良いので、配列数を揃える
+  -- 5パラメタが最大なので、足りない分をpadして問題空間を揃える
   let xs' = map (\x -> x ++ replicate (5 - k) 0) xs
-      -- costの最小値をdpで求めるのでinitialはmaxBound。緩和はmin
-      dp = accumDP @UArray f min (maxBound :: Int) ((0, 0, 0, 0, 0), (p, p, p, p, p)) [((0, 0, 0, 0, 0), 0)] xs'
-        where
-          f ((p1, p2, p3, p4, p5), v) [c1, a1, a2, a3, a4, a5]
-            -- 未到達からは処理しない
-            | v == maxBound = []
-            -- 遷移先だけaccumで適用されるので、遷移されないpの値については気にしなくてよい
-            | otherwise = [((min p (p1 + a1), min p (p2 + a2), min p (p3 + a3), min p (p4 + a4), min p (p5 + a5)), v + c1)]
-          f _ _ = error "unreachable"
-      -- p以上にする、という判定をpを超えたらpにminで丸めることで、すべて達成しているか判定できる
-      x =
-        if
-          | k == 1 -> dp ! (p, 0, 0, 0, 0)
-          | k == 2 -> dp ! (p, p, 0, 0, 0)
-          | k == 3 -> dp ! (p, p, p, 0, 0)
-          | k == 4 -> dp ! (p, p, p, p, 0)
-          | k == 5 -> dp ! (p, p, p, p, p)
-          | otherwise -> error "over 5"
-  print $ if x == maxBound then -1 else x
+      dp = accumArrayDP @UArray next relax ini bnds v0s xs'
+      relax = min
+      ini = (maxBound :: Int)
+      bnds = ((0, 0, 0, 0, 0), (p, p, p, p, p))
+      v0s = [((0, 0, 0, 0, 0), 0)]
+      next ((p1, p2, p3, p4, p5), prevCost) [c, a1, a2, a3, a4, a5]
+        | prevCost == maxBound = []
+        | otherwise =
+            -- 最終的なアクセスでどの添え字なのかわからないといけないので、pの上界を設けておく
+            [ ((min (p1 + a1) p, min (p2 + a2) p, min (p3 + a3) p, min (p4 + a4) p, min (p5 + a5) p), prevCost + c),
+              ((p1, p2, p3, p4, p5), prevCost)
+            ]
+      ix
+        | k == 1 = (p, 0, 0, 0, 0)
+        | k == 2 = (p, p, 0, 0, 0)
+        | k == 3 = (p, p, p, 0, 0)
+        | k == 4 = (p, p, p, p, 0)
+        | k == 5 = (p, p, p, p, p)
+      res = dp ! ix
+  print $ if res == maxBound then -1 else res
