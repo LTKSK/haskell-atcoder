@@ -698,6 +698,36 @@ printArray2D arr = do
   forM_ rows $ \i ->
     putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
 
+-- dp
+accumArrayDP ::
+  ( IArray a e,
+    Ix ix,
+    Eq e,
+    Show e,
+    Show ix,
+    Show (a ix e),
+    Foldable t
+  ) =>
+  ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
+  (e -> e' -> e) -> -- relax
+  e -> -- 初期値。遷移が来ない時の値
+  (ix, ix) -> -- 状態空間の上界と下界
+  [(ix, e')] -> -- 開始時点の状態
+  t x -> -- 入力
+  a ix e -- 出力はArrayまたはUArray
+accumArrayDP next relax ini bnds v0s xs = do
+  let dp = accumArray relax ini bnds v0s
+   in L.foldl' transition dp xs
+  where
+    transition dp x =
+      accumArray relax ini bnds $
+        -- dpの各添え字と値に対してnextを実行。この際入力のxが第二引数になる
+        -- なのでdpの現在の状態に対して(xを選ぶ、xを選ばない)とそれぞれ決めた時の遷移が行われる
+        -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
+        concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
+
+data S = NULL | A | T | C | O | D | E | R deriving (Eq, Ix, Ord, Bounded, Show)
+
 main :: IO ()
 main = do
   [n] <- ints
@@ -715,4 +745,19 @@ main = do
         'e' -> (ac, tc, cc, oc, dc, ec + dc, rc)
         'r' -> (ac, tc, cc, oc, dc, ec, rc + ec)
         _ -> (ac, tc, cc, oc, dc, ec, rc)
-  print res
+
+  let dp = accumArrayDP @UArray next relax ini bnds v0s s
+      relax = addMod
+      ini = 0
+      bnds = (NULL, R)
+      v0s = [(NULL, 1)]
+      next (ps, acc) c = case (ps, c) of
+        (NULL, 'a') -> [(NULL, acc), (A, acc)]
+        (A, 't') -> [(A, acc), (T, acc)]
+        (T, 'c') -> [(T, acc), (C, acc)]
+        (C, 'o') -> [(C, acc), (O, acc)]
+        (O, 'd') -> [(O, acc), (D, acc)]
+        (D, 'e') -> [(D, acc), (E, acc)]
+        (E, 'r') -> [(E, acc), (R, acc)]
+        _ -> [(ps, acc)]
+  print $ dp ! R
