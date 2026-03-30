@@ -965,6 +965,61 @@ divisors n = go 1
       | n `rem` i == 0 = i : (n `div` i) : go (i + 1)
       | otherwise = go (i + 1)
 
+-- dp
+accumArrayDP ::
+  ( IArray a e,
+    Ix ix,
+    Eq e,
+    Show e,
+    Show ix,
+    Show (a ix e),
+    Foldable t
+  ) =>
+  ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
+  (e -> e' -> e) -> -- relax
+  e -> -- 初期値。遷移が来ない時の値
+  (ix, ix) -> -- 状態空間の上界と下界
+  [(ix, e')] -> -- 開始時点の状態
+  t x -> -- 入力
+  a ix e -- 出力はArrayまたはUArray
+accumArrayDP next relax ini bnds v0s xs = do
+  let dp = accumArray relax ini bnds v0s
+   in L.foldl' transition dp xs
+  where
+    transition dp x =
+      accumArray relax ini bnds $
+        -- dpの各添え字と値に対してnextを実行。この際入力のxが第二引数になる
+        -- なのでdpの現在の状態に対して(xを選ぶ、xを選ばない)とそれぞれ決めた時の遷移が行われる
+        -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
+        concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
+
+-- tuple
+fst3 (a, _, _) = a
+
+snd3 (_, b, _) = b
+
+thd3 (_, _, c) = c
+
+-- 表示系
+yn :: Bool -> String
+yn True = "Yes"
+yn False = "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
+
+printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
+printArray2D arr = do
+  let ((r0, c0), (r1, c1)) = bounds arr
+      rows = range (r0, r1)
+      cols = range (c0, c1)
+  forM_ rows $ \i ->
+    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
+
+-- もじゅーら計算
+modulus :: Int
+modulus = 1_000_000_007
+
 -- ref https://atcoder.jp/contests/abc308/submissions/72074755
 -- >>> log2GE 5 = 3
 -- 2^x >= nとなる最小のx
@@ -1057,7 +1112,7 @@ toListBS (BitSet x0) = go x0
           x' = clearBit x tz -- そのビットをクリア
        in i : go x'
 
--- dp
+data S = NULL | M | E | X deriving (Eq, Show, Ord, Bounded, Ix)
 
 -- 畳み込みDP
 -- 時間的遷移時に、状態空間が前の状態を引き継ぐ (accum)
@@ -1087,60 +1142,33 @@ accumDP f combine initial (l, u) v0s xs =
       accum combine dp $
         concatMap (filter (inRange (bounds dp) . fst) . (`f` x)) (assocs dp)
 
-accumArrayDP ::
-  ( IArray a e,
-    Ix ix,
-    Eq e,
-    Show e,
-    Show ix,
-    Show (a ix e),
-    Foldable t
-  ) =>
-  ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
-  (e -> e' -> e) -> -- relax
-  e -> -- 初期値。遷移が来ない時の値
-  (ix, ix) -> -- 状態空間の上界と下界
-  [(ix, e')] -> -- 開始時点の状態
-  t x -> -- 入力
-  a ix e -- 出力はArrayまたはUArray
-accumArrayDP next relax ini bnds v0s xs = do
-  let dp = accumArray relax ini bnds v0s
-   in L.foldl' transition dp xs
+mex :: [Int] -> Int
+mex xs = fromJust $ L.find (`IS.notMember` set) [0 ..]
   where
-    transition dp x =
-      accumArray relax ini bnds $
-        -- dpの各添え字と値に対してnextを実行。この際入力のxが第二引数になる
-        -- なのでdpの現在の状態に対して(xを選ぶ、xを選ばない)とそれぞれ決めた時の遷移が行われる
-        -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
-        concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
-
--- tuple
-fst3 (a, _, _) = a
-
-snd3 (_, b, _) = b
-
-thd3 (_, _, c) = c
-
--- 表示系
-yn :: Bool -> String
-yn True = "Yes"
-yn False = "No"
-
-printYn :: Bool -> IO ()
-printYn = putStrLn . yn
-
-printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
-printArray2D arr = do
-  let ((r0, c0), (r1, c1)) = bounds arr
-      rows = range (r0, r1)
-      cols = range (c0, c1)
-  forM_ rows $ \i ->
-    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
-
--- もじゅーら計算
-modulus :: Int
-modulus = 1_000_000_007
+    set = IS.fromList xs
 
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  as <- ints
+  s <- getLine
+  let dp = accumDP @Array next relax ini bnds v0s $ zip s (map succ as)
+      relax = (+)
+      bnds = ((NULL, emptyBS), (X, fullBS 3))
+      ini = 0 :: Int
+      v0s = [((NULL, emptyBS), 1)]
+      next ((phase, bits), v) (c, a)
+        | v == 0 = []
+        | otherwise = case (phase, c) of
+            (NULL, 'M') -> [((M, a `insertBS` bits), v)]
+            (M, 'E') -> [((E, a `insertBS` bits), v)]
+            (E, 'X') -> [((X, a `insertBS` bits), v)]
+            _ -> []
+      -- そのmexが成立したのがacc回あったというのを収集
+      res = [(mex . map pred $ toListBS bits, acc) | ((x, bits), acc) <- assocs dp, x == X]
+      -- ここではtupleの中身を掛け算して、sumで集計
+      ans = sum $ map (uncurry (*)) res
+
+  print $ res
+
+-- pred,succはenumの関数で一つ次（Intなら+1、Charなら'a'->'b'）
