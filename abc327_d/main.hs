@@ -41,6 +41,7 @@ import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
 import Numeric (showIntAtBase)
+import Text.Printf (vFmt)
 
 -- デバッグ用
 dbg :: (Show a) => a -> ()
@@ -585,43 +586,6 @@ dfs graph start = runST $ do
         -- 隣接ノードを探索
         forM_ (graph ! u) $ \v -> go visited v
 
-bfs ::
-  -- 隣接リストのグラフ
-  Array Int [Int] ->
-  -- start
-  Int ->
-  -- 頂点とそこへのstartからの距離
-  UArray Int Int
-bfs graph start = runST $ do
-  dist <- newArray (bounds graph) (-1) :: ST s (STUArray s Int Int)
-  -- スタート地点のコストは0
-  writeArray dist start 0
-
-  -- queueは再帰で引き回すのでrefで持たない
-  go (Seq.singleton start) dist
-  freeze dist
-  where
-    go Seq.Empty dist = return ()
-    -- queueの先頭要素の抜き出し
-    go (u Seq.:<| queue) dist = do
-      -- 現在の距離を取得
-      d <- readArray dist u
-      -- 隣接頂点の処理。graphは隣接リストなので、(graph ! u)が隣接した頂点一覧になる
-      -- step dで現在の頂点に固定して、qと隣接頂点一覧を受けている
-      queue' <- foldM (step d) queue (graph ! u)
-      -- 更新したqueueを元に再帰
-      go queue' dist
-      where
-        step d q v = do
-          dv <- readArray dist v
-          -- 未訪問の頂点だったら、現在の距離+1で更新。その頂点をenqueueする
-          if dv == -1
-            then do
-              writeArray dist v (d + 1)
-              return (q Seq.|> v)
-            -- 訪問済みならそのまま
-            else return q
-
 buildGridGraphEdges h w =
   -- 右への辺
   [[v, v + 1] | y <- [1 .. h], x <- [1 .. w - 1], let v = (y - 1) * w + x]
@@ -1148,6 +1112,75 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+bfs ::
+  -- 隣接リストのグラフ
+  Array Int [Int] ->
+  -- start
+  Int ->
+  -- 頂点とそこへのstartからの距離
+  UArray Int Int
+bfs graph start = runST $ do
+  dist <- newArray (bounds graph) (-1) :: ST s (STUArray s Int Int)
+  -- スタート地点の色は0
+  writeArray dist start 0
+
+  -- queueは再帰で引き回すのでrefで持たない
+  go (Seq.singleton start) dist
+  freeze dist
+  where
+    go Seq.Empty dist = return ()
+    -- queueの先頭要素の抜き出し
+    go (u Seq.:<| queue) dist = do
+      -- 現在の距離を取得
+      d <- readArray dist u
+
+      queue' <- foldM (step d) queue (graph ! u)
+      go queue' dist
+      where
+        step d q v = do
+          dv <- readArray dist v
+          -- 未訪問の頂点だったら、現在の距離+1で更新。その頂点をenqueueする
+          if dv == -1
+            then do
+              writeArray dist v (1 - d)
+              return (q Seq.|> v)
+            -- 訪問済みならそのまま
+            else return q
+
 main :: IO ()
 main = do
-  print ""
+  [n, m] <- ints
+  as <- ints
+  bs <- ints
+
+  let g = buildGraph (1, n) [[a, b] | (a, b) <- zip as bs]
+  dist <- newArray @IOUArray (bounds g) (-1 :: Int)
+  res <- newIORef True
+  let go Seq.Empty dist = return ()
+      go (u Seq.:<| queue) dist = do
+        d <- readArray dist u
+        queue' <-
+          foldM
+            ( \q v -> do
+                dv <- readArray dist v
+                if dv == -1
+                  then do
+                    writeArray dist v (1 - d)
+                    return (q Seq.|> v)
+                  else do
+                    when (dv == d) $ writeIORef res False
+                    return q
+            )
+            queue
+            (g ! u)
+        cur <- readIORef res
+        when cur $ go queue' dist
+  forM_ [1 .. n] $ \i -> do
+    cur <- readIORef res
+    when cur $ do
+      vis <- readArray dist i
+      when (vis == -1) $ do
+        writeArray dist i 0
+        go (Seq.singleton i) dist
+
+  readIORef res >>= printYn
