@@ -1148,26 +1148,34 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+-- BIT更新: 位置iにvalを加算する
+-- 位置iだけでなく、iを担当範囲に含む上位ノードにも加算を伝播する
 bitUpdate :: IOUArray Int Int -> Int -> Int -> IO ()
 bitUpdate bit i val = do
   n <- snd <$> getBounds bit
   let go j
-        | j > n = return ()
+        | j > n = return () -- 配列の範囲外なら終了
         | otherwise = do
             v <- readArray bit j
-            writeArray bit j (v + val)
-            go (j + (j .&. (-j)))
+            writeArray bit j (v + val) -- 現在のノードに加算
+            go (j + (j .&. (-j))) -- 最下位ビットを足して次の上位ノードへ
+            -- 例: j=3(0011) > +1 > j=4(0100) > +4 > j=8(1000)
   go i
 
+-- BIT累積和: 1〜iの合計を求める
+-- 位置iから最下位ビットを引きながら、担当範囲の合計を足し集める
 bitQuery :: IOUArray Int Int -> Int -> IO Int
 bitQuery bit i = do
   let go 0 acc = return acc
       go j acc = do
         v <- readArray bit j
-        go (j - (j .&. (-j))) (acc + v)
+        -- j .&. -jで最下位の1が立っているbitが手に入る
+        go (j - (j .&. (-j))) (acc + v) -- 現在のノードの値を足して、最下位ビットを引いて次へ
+        -- 例: j=7(0111) → -1 → j=6(0110) → -2 → j=4(0100) → -4 → j=0 (終了)
+        -- bit[7]([7,7]の合計) + bit[6]([5,6]の合計) + bit[4]([1,4]の合計) = [1,7]の合計
   go i 0
 
--- 転倒数を求める。1-based想定
+-- 転倒数を求める。1-based想定。BITを使う
 inversions :: [Int] -> IO Int
 inversions xs = do
   let maxVal = maximum xs
@@ -1176,7 +1184,7 @@ inversions xs = do
   forM_ (zip [1 ..] xs) $ \(i, x) -> do
     cnt <- bitQuery bit maxVal
     cntX <- bitQuery bit x
-    modifyIORef' ref (+ (cnt - cntX)) -- xより大きい要素の数
+    modifyIORef' ref (+ (cnt - cntX)) -- xより大きい要素の数が転倒数への寄与
     bitUpdate bit x 1
   readIORef ref
 
@@ -1190,27 +1198,44 @@ main = do
   -- (5**5)^2で10^6なので、setなどで重複を管理してNlogNぐらいの計算量じゃないと通らないな
   let cols = L.permutations [1 .. h]
       rows = L.permutations [1 .. w]
-      -- 転倒数
-      inversions xs =
-        length
-          [ (i, j)
-            | (i, a) <- zip [0 ..] xs,
-              (j, b) <- zip [0 ..] xs,
-              i < j,
-              a > b
-          ]
-      res =
-        [ inversions cs + inversions rs
+  -- 転倒数
+  -- inversions xs =
+  --   length
+  --     [ (i, j)
+  --       | (i, a) <- zip [0 ..] xs,
+  --         (j, b) <- zip [0 ..] xs,
+  --         i < j,
+  --         a > b
+  --     ]
+  -- res =
+  --   [ inversions cs + inversions rs
+  --     | cs <- cols,
+  --       rs <- rows,
+  --       and
+  --         [ bs ! (y, x) == as ! (y', x')
+  --           | (y, x) <- range $ bounds bs,
+  --             let y' = cs !! (y - 1),
+  --             let x' = rs !! (x - 1)
+  --         ]
+  --   ]
+  -- print $ if null res then -1 else minimum res
+  let candidates =
+        [ (cs, rs)
           | cs <- cols,
             rs <- rows,
             and
-              [ bs ! (y, x) == as ! (y', x')
-                | (y, x) <- range $ bounds bs,
-                  let y' = cs !! (y - 1),
-                  let x' = rs !! (x - 1)
+              [ bs ! (y, x) == as ! (cs !! (y - 1), rs !! (x - 1))
+                | (y, x) <- range $ bounds bs
               ]
         ]
-  print $ if null res then -1 else minimum res
+  if null candidates
+    then print (-1)
+    else do
+      costs <- forM candidates $ \(cs, rs) -> do
+        ic <- inversions cs
+        ir <- inversions rs
+        return (ic + ir)
+      print $ minimum costs
 
 -- 行の中身を個別に並び替えようとしていたが、並び替えられるのは列と行である。なので1..hと1..wの順列でOK
 -- 転倒数は頭になかった。復習せねば
