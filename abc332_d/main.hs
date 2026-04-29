@@ -1148,6 +1148,69 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+bitUpdate :: IOUArray Int Int -> Int -> Int -> IO ()
+bitUpdate bit i val = do
+  n <- snd <$> getBounds bit
+  let go j
+        | j > n = return ()
+        | otherwise = do
+            v <- readArray bit j
+            writeArray bit j (v + val)
+            go (j + (j .&. (-j)))
+  go i
+
+bitQuery :: IOUArray Int Int -> Int -> IO Int
+bitQuery bit i = do
+  let go 0 acc = return acc
+      go j acc = do
+        v <- readArray bit j
+        go (j - (j .&. (-j))) (acc + v)
+  go i 0
+
+-- 転倒数を求める。1-based想定
+inversions :: [Int] -> IO Int
+inversions xs = do
+  let maxVal = maximum xs
+  bit <- newArray (1, maxVal) 0 :: IO (IOUArray Int Int)
+  ref <- newIORef 0
+  forM_ (zip [1 ..] xs) $ \(i, x) -> do
+    cnt <- bitQuery bit maxVal
+    cntX <- bitQuery bit x
+    modifyIORef' ref (+ (cnt - cntX)) -- xより大きい要素の数
+    bitUpdate bit x 1
+  readIORef ref
+
 main :: IO ()
 main = do
-  print ""
+  [h, w] <- ints
+  as <- getMatInt h w
+  bs <- getMatInt h w
+  -- ある列にある値は他の列にある値と同じ列には入れない。行も同じ
+  -- H,Wが5までなので、上手いことやって全探索なんだと思う
+  -- (5**5)^2で10^6なので、setなどで重複を管理してNlogNぐらいの計算量じゃないと通らないな
+  let cols = L.permutations [1 .. h]
+      rows = L.permutations [1 .. w]
+      -- 転倒数
+      inversions xs =
+        length
+          [ (i, j)
+            | (i, a) <- zip [0 ..] xs,
+              (j, b) <- zip [0 ..] xs,
+              i < j,
+              a > b
+          ]
+      res =
+        [ inversions cs + inversions rs
+          | cs <- cols,
+            rs <- rows,
+            and
+              [ bs ! (y, x) == as ! (y', x')
+                | (y, x) <- range $ bounds bs,
+                  let y' = cs !! (y - 1),
+                  let x' = rs !! (x - 1)
+              ]
+        ]
+  print $ if null res then -1 else minimum res
+
+-- 行の中身を個別に並び替えようとしていたが、並び替えられるのは列と行である。なので1..hと1..wの順列でOK
+-- 転倒数は頭になかった。復習せねば
