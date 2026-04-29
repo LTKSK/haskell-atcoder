@@ -1191,4 +1191,6 @@ modulus = 1_000_000_007
 
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  xs <- ints
+  inversions xs >>= print
