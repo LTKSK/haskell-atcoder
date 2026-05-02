@@ -1189,6 +1189,28 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+solve n = go [] 1 1 n n R
+  where
+    -- go acc xl _ xu _ L = acc
+    go acc xl _ xu _ _
+      | xl == xu = acc
+    -- ys,xs,yt,xtみたいに下限上限持たせた方が管理しやすいかも！
+    go acc xl yl xu yu R = let acc' = reverse $ map (yl,) [xl .. xu] in go (acc' : acc) xl (yl + 1) xu yu D
+    go acc xl yl xu yu D = let acc' = reverse $ map (,xu) [yl .. yu] in go (acc' : acc) xl yl (xu - 1) yu L
+    go acc xl yl xu yu L = let acc' = reverse $ map (yu,) [xu, xu - 1 .. xl] in go (acc' : acc) xl yl xu (yu - 1) U
+    go acc xl yl xu yu U = let acc' = reverse $ map (,xl) [yu, yu - 1 .. yl] in go (acc' : acc) (xl + 1) yl xu yu R
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  -- modと向きでなんとか？
+  -- 右向きはy最小固定x増加、下向きはx最大固定y増加。左向きはy最大固定x減少、上向きはx最小固定y減少
+  -- この上ですでに探索した範囲が被らないように、最後yの増加範囲だけ1減らせばOK？
+  -- これをn-1週する
+  let grid = (((n + 1) `div` 2, (n + 1) `div` 2), "T") : (zip (reverse $ concat $ solve n) $ map show [1 ..])
+      arr = listArray @Array ((1, 1), (n, n)) (repeat "0") // grid
+  let ((r0, c0), (r1, c1)) = bounds arr
+      rows = range (r0, r1)
+      cols = range (c0, c1)
+  forM_ rows $ \i ->
+    putStrLn $ unwords [(arr ! (i, j)) | j <- cols]
