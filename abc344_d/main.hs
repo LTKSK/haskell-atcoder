@@ -1198,21 +1198,24 @@ main = do
     let a' :: Int = read a
     return (a', ss)
 
-  -- tは100文字以下なので重めの実装も通りそう？
-  -- iごとにsは高々10まで。DP的な遷移を書ければ良さそうな？
   -- j文字消費したtにsが一致するかを判定
   let canConsumeAt j s = take (length s) (drop j t) == s
 
   -- 袋iでn文字目まで消費した時の最小コスト
   let tlen = length t
+      -- 選ばない選択肢があるのでaccumDP
       dp = accumDP @UArray next relax ini bnds v0s as
+      -- tを0文字以上tlenまで消費した時のコスト
       bnds = (0, tlen)
+      -- 最小値を求めるのでmaxBoundとmin
       ini = (maxBound :: Int)
       relax = min
+      -- 0文字消費はコスト0
       v0s = [(0, 0)]
       next (u, v) (_, ss)
         | v == maxBound = []
         | otherwise =
+            -- sの文字列の数だけ遷移が作られる
             concatMap
               (\s -> [(u + length s, v + 1) | canConsumeAt u s])
               ss
