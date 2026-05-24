@@ -1193,36 +1193,35 @@ main :: IO ()
 main = do
   [n, h, w] <- ints
   abs <- replicateM n intwo
-  -- 次の場所を探す
-  let nextEmpty s =
-        let e = [(y, x) | (y, x) <- range ((1, 1), (h, w)), not $ S.member (y, x) s]
-         in if null e then Nothing else Just (head e)
-      -- 置けるか調べる
-      canPlace s py px th tw = all (\p -> inRange ((1, 1), (h, w)) p && (not $ S.member p s)) [(y, x) | y <- [py .. py + th - 1], x <- [px .. px + tw - 1]]
-      -- 実際に配置
-      place s py px th tw =
-        let s' = S.fromList [(y, x) | y <- [py .. py + th - 1], x <- [px .. px + tw - 1]]
-         in S.union s s'
-      -- tileの選び方を全パターン作る
-      -- 選んだタイルと残り
-      pickTile :: [a] -> [(a, [a])]
-      pickTile [] = []
-      pickTile (x : xs) = (x, xs) : [(y, x : ys) | (y, ys) <- pickTile xs]
+  let findEmpty :: S.Set (Int, Int) -> Int -> Int -> Maybe (Int, Int)
+      findEmpty s h w =
+        let candidates = [(y, x) | (y, x) <- range ((1, 1), (h, w)), not $ S.member (y, x) s]
+         in if null candidates then Nothing else Just $ head candidates
+      placeTile :: (Int, Int) -> Int -> Int -> S.Set (Int, Int)
+      placeTile (r, c) th tw = S.fromList $ range ((r, c), (r + th - 1, c + tw - 1))
+      canPlace :: S.Set (Int, Int) -> (Int, Int) -> Int -> Int -> Int -> Int -> Bool
+      canPlace s (r, c) th tw h w =
+        let ts =
+              S.fromList $
+                filter (\pos -> (inRange ((1, 1), (h, w)) pos) && (not $ S.member pos s)) $
+                  range ((r, c), (r + th - 1, c + tw - 1))
+         in S.size ts == th * tw
 
-      -- 空きマス探す、tileを置けるか試す（回転含めて）
-      -- 置けたら次に進む
-      solve s ts
-        | S.size s == (h * w) = True
-        | otherwise =
-            case nextEmpty s of
-              Nothing -> False
-              Just (py, px) ->
-                let tiles = pickTile ts
-                 in any
-                      ( \((th, tw), rem) ->
-                          tryPlace s py px th tw rem || tryPlace s py px tw th rem
-                      )
-                      tiles
-        where
-          tryPlace s py px th tw ts = canPlace s py px th tw && solve (place s py px th tw) ts
-  printYn $ solve S.empty abs
+      -- 配列から、一つ選んで残りを返す
+      picks :: [a] -> [(a, [a])]
+      picks [] = []
+      picks (x : xs) = (x, xs) : [(y, x : ys) | (y, ys) <- picks xs]
+
+      -- a,bから一枚取り出して...
+      solve s tiles =
+        case findEmpty s h w of
+          Nothing -> True
+          Just (r, c) -> any tryTile (picks tiles)
+            where
+              tryTile ((a, b), rest) =
+                tryPlace a b rest || tryPlace b a rest
+              tryPlace th tw rest =
+                canPlace s (r, c) th tw h w && solve (S.union s (placeTile (r, c) th tw)) rest
+      res = solve S.empty abs
+
+  printYn res
