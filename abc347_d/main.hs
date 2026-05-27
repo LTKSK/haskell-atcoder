@@ -1189,6 +1189,81 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+-- main :: IO ()
+-- main = do
+--   [a, b, c] <- integers
+--   let z = fromIntegral $ popCount c
+--       -- xのbitについて考えると(1,0)か(1,1)を選んだ時だけ。前者を選ぶ回数をp、後者をqとした時、p+q=a
+--       -- yは(z-p)+q=b
+--       -- p=z+q-b
+--       -- p=a-q
+--       -- 2p = z-b+a
+--       -- p = (a-b+z) / 2
+--       p = (a - b + z) `div` 2
+--       q = a - p
+--       -- 2^60未満なので、0~59の60bitが最大
+--       can = even (a - b + z) && p >= 0 && p <= 60 && q >= 0 && q <= 60 - z
+--       res = L.foldl' step ini [0 .. 59]
+--       ini = (p, q, 0 :: Integer, 0 :: Integer) -- 残りp（1,0）を置ける回数、残りq（1,1）を置ける回数、X、Y
+--       step (rp, rq, x, y) k
+--         -- (1,0) or (0,1)
+--         | testBit c k =
+--             if rp > 0
+--               then (rp - 1, rq, setBit x k, y)
+--               else (rp, rq, x, setBit y k)
+--         | otherwise =
+--             if rq > 0
+--               then (rp, rq - 1, setBit x k, setBit y k)
+--               else (rp, rq, x, y)
+--       (_, _, x, y) = res
+--   putStrLn $ if can then unwords $ map show [x, y] else "-1"
+
 main :: IO ()
 main = do
-  print ""
+  [a, b, c] <- integers
+  -- a=n10+n11
+  -- b=n01+n11
+  -- c=n10+n01
+  -- n00 = 60-(a+b+c)/2
+  -- n00 = 60-(n10+n10 + n11+n11 + n01+n01)/2
+  -- n00 = 60-(n10 + n11 + n01)/2
+  let cc = fromIntegral $ popCount c
+      ng =
+        -- ここが奇数になる場合は60 - (a + b + cc) `div` 2の計算が行えない
+        odd (a + b + cc)
+          -- n00が0以上になるためには、
+          -- n00 = 60-(n10 + n11 + n01)/2
+          -- 60-(n10 + n11 + n01)/2 >= 0
+          -- 120 >= (a + b + cc)
+          || a + b + cc > 120
+          -- 以下の二つはa,bの立っているbitの余る分。xorでa,b双方のbitを消していったときに多い方が余る
+          -- このbitは絶対1なので、その数がccを超えていたら実現できない
+          || a - b > cc
+          || b - a > cc
+          -- bitが1のものを全てずらして置いた時に置ける最大の個数はa+b個。ccがこれより大きい時は実現できない
+          || cc > a + b
+  if ng
+    then putStrLn "-1"
+    else do
+      let n00 = 60 - (a + b + cc) `div` 2
+          n01 = (b - a + cc) `div` 2
+          n10 = (a - b + cc) `div` 2
+          n11 = (a + b - cc) `div` 2
+          -- 上の桁から順にチェック
+          step (x, y, c00, c01, c10, c11) k =
+            if testBit c k
+              then
+                -- bitが立っている場合はXのパターンから吸収
+                if c10 > 0
+                  -- bitを1立てるのは2倍して+1で実現。0で埋めるのは単に2をかける
+                  then (2 * x + 1, 2 * y, c00, c01, c10 - 1, c11)
+                  -- 経ってないならyから回収
+                  else (2 * x, 2 * y + 1, c00, c01 - 1, c10, c11)
+              else
+                -- xorで0になるところはc11かc00なので、片方の個数をチェックすればOK
+                if c00 > 0
+                  then (2 * x, 2 * y, c00 - 1, c01, c10, c11)
+                  else (2 * x + 1, 2 * y + 1, c00, c01, c10, c11 - 1)
+          (x, y, _, _, _, _) =
+            L.foldl' step (0, 0, n00, n01, n10, n11) [59, 58 .. 0]
+      putStrLn $ unwords [show x, show y]
