@@ -585,8 +585,6 @@ getSegTree seg n i = VUM.read seg (n + i)
 
 lrud = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
-around = [(0, -1), (0, 1), (-1, 0), (1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
-
 dfs :: Array Int [Int] -> Int -> UArray Int Bool
 dfs graph start = runST $ do
   -- ST sのsはスレッドを区別するための幽霊型だそう。STUArrayはMutableなUnboxedの配列
@@ -699,35 +697,6 @@ bfs01Grid grid start goal = minimum [dist ! (fst goal, snd goal, d) | d <- [U, D
           inRange (bounds grid) (nr, nc),
           grid ! (nr, nc) /= '#'
       ]
-
--- dist <- newArray @IOUArray bnds ini
--- のようなdistを要求する
--- queueには予め開始地点を入れておこう。abc383_cに参考実装
-bfsGrid :: IOUArray (Int, Int) Int -> UArray (Int, Int) Char -> Seq.Seq (Int, Int) -> IO ()
-bfsGrid dist grid queue = case queue of
-  Seq.Empty -> return ()
-  (y, x) Seq.:<| rest -> do
-    let bnds = bounds grid
-    curDist <- readArray dist (y, x)
-    newQueue <-
-      foldM
-        ( \seq (dy, dx) -> do
-            let y' = y + dy
-                x' = x + dx
-            if inRange bnds (y', x')
-              then do
-                nextDist <- readArray dist (y', x')
-                if (nextDist == -1 && grid ! (y', x') /= '#')
-                  then do
-                    writeArray dist (y', x') (curDist + 1)
-                    return $ seq Seq.|> (y', x')
-                  else
-                    return seq
-              else return seq
-        )
-        rest
-        lrud
-    bfsGrid dist grid newQueue
 
 dijkstra ::
   -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
@@ -1223,18 +1192,70 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
-printArray2D :: (Show a, Ix i, Ix j, IArray arr a) => arr (i, j) a -> IO ()
+printArray2D :: (Ix i, Ix j, IArray arr Int) => arr (i, j) Int -> IO ()
 printArray2D arr = do
   let ((r0, c0), (r1, c1)) = bounds arr
       rows = range (r0, r1)
       cols = range (c0, c1)
   forM_ rows $ \i ->
-    putStrLn $ unwords [show (arr ! (i, j)) | j <- cols]
+    putStrLn $ [if arr ! (i, j) > 0 && odd (arr ! (i, j)) then '#' else '.' | j <- cols]
 
 -- もじゅーら計算
 modulus :: Int
 modulus = 1_000_000_007
 
+around = [(0, -1), (0, 1), (-1, 0), (1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+
+bfs' :: IOUArray (Int, Int) Int -> UArray (Int, Int) Char -> Seq.Seq (Int, Int) -> IO ()
+bfs' dist grid queue = case queue of
+  Seq.Empty -> return ()
+  (y, x) Seq.:<| rest -> do
+    let bnds = bounds grid
+    curDist <- readArray dist (y, x)
+    newQueue <-
+      foldM
+        ( \seq (dy, dx) -> do
+            let y' = y + dy
+                x' = x + dx
+            if inRange bnds (y', x')
+              then do
+                nextDist <- readArray dist (y', x')
+                if nextDist == -1
+                  then do
+                    writeArray dist (y', x') (curDist + 1)
+                    return $ seq Seq.|> (y', x')
+                  else
+                    return seq
+              else return seq
+        )
+        rest
+        around
+    bfs' dist grid newQueue
+
 main :: IO ()
 main = do
-  print ""
+  [h, w] <- ints
+  ss <- replicateM h getLine
+  -- 操作が10^100なので素直にシミュレーションせず打ち切る系
+  -- h*wが10^6なので、h*w*log(h*w)ぐらいまでなら持つかな
+  -- 隣接判定は8近傍
+  -- 終了条件を考えましょう。サンプルの1回目の操作と2回目の操作は白黒ひっくり返っているだけ
+  -- というかよく考えたら周期性があるのか。最初黒いマスは2回後にはまた黒くなっているはず。隣接マスがそうなんだもんな
+  -- 操作はh*w回を上界としておこう。左上のマスの影響が右下に波及するまで
+  let bnds = ((1 :: Int, 1 :: Int), (h, w))
+  visited <- newArray @IOUArray ((1, 1), (h, w)) (-1 :: Int)
+  let grid = listArray @UArray bnds $ concat ss
+      starts =
+        [ p
+          | p <- range bnds,
+            grid ! p == '.',
+            any (\d -> let p' = p + d in inRange bnds p' && grid ! p' == '#') around
+        ]
+  forM_ starts $ \idx -> do
+    writeArray visited idx 0
+  -- gridは次の状態に更新不要
+  -- 今回必要なのはstartsからの距離だけで、gridのマスによって通過の可否が決まったりしない
+  bfs' visited grid (Seq.fromList starts)
+
+  visited' <- freeze visited :: IO (UArray (Int, Int) Int)
+  printArray2D visited'

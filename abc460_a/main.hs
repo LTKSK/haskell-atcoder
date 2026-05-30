@@ -700,35 +700,6 @@ bfs01Grid grid start goal = minimum [dist ! (fst goal, snd goal, d) | d <- [U, D
           grid ! (nr, nc) /= '#'
       ]
 
--- dist <- newArray @IOUArray bnds ini
--- のようなdistを要求する
--- queueには予め開始地点を入れておこう。abc383_cに参考実装
-bfsGrid :: IOUArray (Int, Int) Int -> UArray (Int, Int) Char -> Seq.Seq (Int, Int) -> IO ()
-bfsGrid dist grid queue = case queue of
-  Seq.Empty -> return ()
-  (y, x) Seq.:<| rest -> do
-    let bnds = bounds grid
-    curDist <- readArray dist (y, x)
-    newQueue <-
-      foldM
-        ( \seq (dy, dx) -> do
-            let y' = y + dy
-                x' = x + dx
-            if inRange bnds (y', x')
-              then do
-                nextDist <- readArray dist (y', x')
-                if (nextDist == -1 && grid ! (y', x') /= '#')
-                  then do
-                    writeArray dist (y', x') (curDist + 1)
-                    return $ seq Seq.|> (y', x')
-                  else
-                    return seq
-              else return seq
-        )
-        rest
-        lrud
-    bfsGrid dist grid newQueue
-
 dijkstra ::
   -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
   Array Int [(Int, Int)] ->
@@ -1237,4 +1208,7 @@ modulus = 1_000_000_007
 
 main :: IO ()
 main = do
-  print ""
+  [n, m] <- ints
+  let solve n 0 acc = acc
+      solve n m acc = solve n (n `mod` m) (acc + 1)
+  print $ solve n m 0
