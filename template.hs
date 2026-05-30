@@ -125,6 +125,23 @@ toBaseDigits base n = reverse $ go n
     go 0 = []
     go x = (x `mod` base) : go (x `div` base)
 
+-- bit操作系
+-- 一番右に立っているbitのみが1の値を取得
+-- e.g) l=12=b1100 -> 4
+-- 2の補数表現がbit反転して+1なので、最下位のbitが1のところで桁上がりが止まり、そこだけbitが逆になる
+-- 1100 -> 0011+1 -> 0100 -> 1100 & 0100 = 0100
+lowestBit :: Int -> Int
+lowestBit l = l .&. (-l)
+
+-- n以下で最上位のbitだけを立てた値を返す
+-- e.g) n=11 -> 8
+largestPow2AtMost :: Int -> Int
+-- bit n = 2^n
+-- countLeadingZerosは、上位bitからみて連続する0の個数
+-- intだと64bitなのでcountLeadingZeros 5 は61を返す
+-- finiteBitSizeはIntだと64が帰る。n=5の時この処理は4を返す。-1しているのはbitは0basedなので
+largestPow2AtMost n = bit (finiteBitSize n - 1 - countLeadingZeros n)
+
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
   | abs (ok - ng) <= 1 = ok
