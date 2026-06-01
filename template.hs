@@ -783,7 +783,8 @@ buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
 
 data UnionFind = UF
   { parent :: !(VUM.IOVector Int),
-    rank :: !(VUM.IOVector Int)
+    rank :: !(VUM.IOVector Int),
+    size :: !(VUM.IOVector Int)
   }
 
 newUf :: Int -> IO UnionFind
@@ -792,7 +793,9 @@ newUf n = do
   -- 1basedの添え字で扱いたいのでn+1。個数が増える分には問題ない
   p <- VUM.generate (n + 1) id
   r <- VUM.replicate (n + 1) 0
-  return (UF p r)
+  -- 頂点iをrootとした時のグループのサイズが入っている
+  s <- VUM.replicate (n + 1) 1
+  return (UF p r s)
 
 findUf :: UnionFind -> Int -> IO Int
 findUf uf x = do
@@ -811,24 +814,26 @@ findUf uf x = do
 
 uniteUf :: UnionFind -> Int -> Int -> IO Bool
 uniteUf uf x y = do
-  -- unionfindの同じグループかどうかの判定はrootが同じかどうかで判定される
   px <- findUf uf x
   py <- findUf uf y
-  -- 同じなら特に何もせず終了
   if px == py
     then return False
     else do
-      -- rankを読み取って、より小さい方に大きい方を繋ぐ
       rx <- VUM.read (rank uf) px
       ry <- VUM.read (rank uf) py
+      sx <- VUM.read (size uf) px
+      sy <- VUM.read (size uf) py
       case compare rx ry of
-        LT -> VUM.write (parent uf) px py
-        GT -> VUM.write (parent uf) py px
+        LT -> do
+          VUM.write (parent uf) px py
+          VUM.write (size uf) py (sx + sy) -- 親側にサイズを合算
+        GT -> do
+          VUM.write (parent uf) py px
+          VUM.write (size uf) px (sx + sy)
         EQ -> do
-          -- 同じだったら片方に繋いで、ランクを1増やす
-          -- writeは配列 index value の順に引数を受ける。parent ufが配列を返すのを忘れずに
-          VUM.write (parent uf) py px -- pyをpxに繋ぐ
-          VUM.modify (rank uf) (+ 1) px -- pxの子が増えたのでrankを+1
+          VUM.write (parent uf) py px
+          VUM.modify (rank uf) (+ 1) px
+          VUM.write (size uf) px (sx + sy)
       return True
 
 sameUf :: UnionFind -> Int -> Int -> IO Bool
@@ -837,6 +842,12 @@ sameUf uf x y = do
   px <- findUf uf x
   py <- findUf uf y
   return (px == py)
+
+-- ufに含まれる、頂点xを含むグループのサイズを得る
+sizeUf :: UnionFind -> Int -> IO Int
+sizeUf uf x = do
+  root <- findUf uf x
+  VUM.read (size uf) root
 
 -- cjpさんの https://atcoder.jp/contests/tessoku-book/submissions/69812807 を参考に
 -- Dinicグラフ
