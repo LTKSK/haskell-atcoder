@@ -1244,27 +1244,37 @@ printArray2D arr = do
 
 -- もじゅーら計算
 modulus :: Int
-modulus = 1_000_000_007
+modulus = 998_244_353
 
 main :: IO ()
 main = do
-  [n, k] <- ints
-  ps <- ints
-  -- 1. k個の添え字iを選ぶ
-  -- 2. 1で選んだiにより得られるk要素p_iの集合が連続した値になっている
-  -- 連続するk個の整数を連続K整数と呼んだりするそうな
-  -- aを1からn-kまでスライドしてk個のiを逆引きする。この時のiの最大最小が分かればOK
-  let posOf = listArray @UArray (1, n) $ map snd $ L.sort (zip ps [1 :: Int ..])
-      ini = IS.fromList [posOf ! p | p <- [1 .. k]]
-      iniDiff = IS.findMax ini - IS.findMin ini
+  [n] <- integers
+  as <- integers
+  let as' = listArray @Array (1, n) as
 
-      solve a s res
-        | a + k > n = res
-        | otherwise =
-            let s' = IS.delete (posOf ! a) s
-                s'' = IS.insert (posOf ! (a + k)) s'
-             in solve (a + 1) s'' (min res (IS.findMax s'' - IS.findMin s''))
-  print $ solve 1 ini iniDiff
+  -- aの自分より後ろの要素しか足されない
+  -- 桁数は予め求めておくことが出来はするなぁ。NlogNの計算量で求める
+  -- 自身が何回足されるのかが予めわかるか...?（下の桁として）
+  -- 計算順が固定なのでsortはできないか
+  -- 右辺と左辺での登場回数はasのどこにいるかから求められる
+  -- fの第一引数にaがある時の寄与と第二引数にある時の寄与を求める
+  arr <- newArray @IOArray (1, 10) (0 :: Integer)
+  forM_ [1 .. n] $ \i -> do
+    let l = length $ show (as' ! i)
+    modifyArray' arr l (+ 1)
 
--- 並び替えることで得られる==順序不問
--- 何を選ぶ問題なのか考えるのが肝要
+  ans <- newIORef 0
+  forM_ [1 .. n :: Integer] $ \i -> do
+    let a = as' ! i
+        alen = length $ show a
+        -- 右辺にいるときは、自分より左の要素の数だけ足される
+        right = a * (i - 1)
+    -- 自身を含まないように消してから
+    modifyArray' arr alen (subtract 1)
+
+    ascs <- filter (\(i, v) -> v /= 0) <$> getAssocs arr
+    let left = a * sum [10 ^ d * c | (d, c) <- ascs]
+    modifyIORef' ans (+ (right + left))
+
+  ans' <- readIORef ans
+  print $ ans' `mod` 998_244_353
