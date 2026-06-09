@@ -1269,7 +1269,8 @@ main = do
         alen = length $ show a
         -- 右辺にいるときは、自分より左の要素の数だけ足される
         right = a * (i - 1)
-    -- 自身を含まないように消してから
+    -- 自身を含まないように消してから計算する
+    -- arrはaiを除く残りの要素の桁を合計したものを表す
     modifyArray' arr alen (subtract 1)
 
     ascs <- filter (\(i, v) -> v /= 0) <$> getAssocs arr
@@ -1278,3 +1279,22 @@ main = do
 
   ans' <- readIORef ans
   print $ ans' `mod` 998_244_353
+  let prefixSum :: (IArray a e, Ix i, Num e) => (i, i) -> [e] -> a i e
+      prefixSum b = listArray b . L.scanl' (+) 0
+      xs = [(a, length $ show a) | a <- as]
+      -- 桁毎にi番目までのaの累積和。yの寄与に使う
+      ss = listArray @Array (1, 10 :: Int) [prefixSum @Array (1, n + 1) [bool 0 a (k == d) | (a, k) <- xs] | d <- [1 .. 10]]
+      -- 桁毎にi番目までに素の桁数がいくつ出てくるかの累積和。xの寄与に使う
+      ks = listArray @Array (1, 10) [prefixSum @Array (1, n + 1) [bool 0 1 (k == d) | (_, k) <- xs] | d <- [1 .. 10]]
+      res =
+        sum
+          -- aの寄与を求めるには、a*10^d+右辺で出てくる数とaより右にあるaiの値
+          [ (a * 10 ^ d) * (k ! (n + 1) - k ! (i + 1)) + s ! (n + 1) - s ! (i + 1)
+            | (i, a) <- zip [1 ..] as,
+              d <- [1 .. 10],
+              let s = ss ! d
+                  k = ks ! d
+          ]
+
+  print ss
+  print res
