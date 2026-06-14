@@ -1150,35 +1150,35 @@ modulus = 1_000_000_007
 
 main :: IO ()
 main = do
-  [n, q] <- integers
-  -- 添え字が0~で始まる
-  ps <- listArray @UArray ((1, 1), (n, n)) . concat <$> replicateM (fromIntegral n) getLine
-  -- modで解く問題
-  -- 座標がすべてmodで戻ってくる。後は何回繰り返すだけなのかと、その範囲での個数を計上する
-  -- 2次元累積和を作る実装を試しましょう。地力を付けたい
-  -- Bを数える
-  let ps' =
-        listArray @Array
-          ((0, 0), (n, n))
+  [n, q] <- ints
+  ps <- listArray @UArray ((1, 1), (n, n)) . concat <$> replicateM n getLine
+  let -- 黒マスを数える
+      cToBin 'W' = 0
+      cToBin 'B' = 1
+      g :: Array (Int, Int) Int =
+        listArray ((0, 0), (n, n)) $
           [ if y == 0 || x == 0
               then 0
-              else toBin ps (y, x) + ps' ! (y - 1, x) + ps' ! (y, x - 1) - ps' ! (y - 1, x - 1)
+              -- 黒いマスの数を計上するとき、重複個所を消し忘れない事
+              -- つくったらprintして想定通りか見た方が良い
+              else cToBin (ps ! (y, x)) + g ! (y - 1, x) + g ! (y, x - 1) - g ! (y - 1, x - 1)
             | (y, x) <- range ((0, 0), (n, n))
           ]
-      toBin :: UArray (Integer, Integer) Char -> (Integer, Integer) -> Integer
-      toBin arr ix = if arr ! ix == 'B' then 1 else 0
-  -- 簡単にした例で考える。1次元でyのみがあるとしたら?n=3で2->4を求めるには？
-  let total = ps' ! (n, n)
+      total = g ! (n, n)
+      -- 領域内の黒マスの数の計算
       calc y x =
-        -- 1,0
         let (qy, ry) = y `divMod` n
             (qx, rx) = x `divMod` n
-            t1 = total * qy * qx
-            t2 = ps' ! (n, rx) * qy
-            t3 = ps' ! (ry, n) * qx
-            t4 = ps' ! (ry, rx)
-         in t1 + t2 + t3 + t4
-  replicateM_ (fromInteger q) $ do
-    -- dy,dxからy,xの内容を引く！
-    [y, x, dy, dx] <- map (+ 1) <$> integers
-    print $ (calc dy dx - calc dy (x - 1) - calc (y - 1) dx + calc (y - 1) (x - 1))
+            t1 = qy * qx * total
+            -- yの半端
+            t2 = qx * g ! (ry, n)
+            -- xの半端
+            t3 = qy * g ! (n, rx)
+            -- 両方半端
+            t4 = g ! (ry, rx)
+         in -- 全部足したらこのy,xで得られる区間の黒いマスの数がわかる
+            t1 + t4 + t2 + t3
+  replicateM_ q $ do
+    [y, x, dy, dx] <- map (+ 1) <$> ints
+    -- 2次元累積和
+    print $ calc dy dx - calc (y - 1) dx - calc dy (x - 1) + calc (y - 1) (x - 1)
