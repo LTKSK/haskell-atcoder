@@ -1202,16 +1202,16 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
-buildWeightedGraph :: (Integer, Integer) -> Array Integer Integer -> [[Integer]] -> Array Integer [(Integer, Integer)]
+buildWeightedGraph :: (Int, Int) -> UArray Int Int -> [[Int]] -> Array Int [(Int, Int)]
 buildWeightedGraph (i, n) arr uvcs = accumArray (flip (:)) [] (i, n) xs
   where
-    xs = concatMap (\[u, v, c] -> [(u, (v, c + arr ! fromIntegral v)), (v, (u, c + arr ! fromIntegral u))]) uvcs
+    xs = concatMap (\[u, v, c] -> [(u, (v, c + arr ! v)), (v, (u, c + arr ! u))]) uvcs
 
 main :: IO ()
 main = do
-  [n, m] <- integers
-  as <- listArray @Array (1, n) <$> integers
-  uvbs <- replicateM (fromIntegral m) integers
+  [n, m] <- ints
+  as <- listArray @UArray (1, n) <$> ints
+  uvbs <- replicateM m ints
   -- 単純連結無向グラフは、多重辺やループがなく、全てのノードが繋がっているグラフ
   -- Bが重み。1からiの頂点までで最小の重み。めちゃでかくなる可能性あり
   -- 重みは正の値だけだからダイクストラかな。無向グラフなのだけ気になるけど
@@ -1219,13 +1219,13 @@ main = do
   let g = buildWeightedGraph (1, n) as uvbs
       dijkstra ::
         -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
-        Array Integer [(Integer, Integer)] ->
+        Array Int [(Int, Int)] ->
         -- start
-        Integer ->
+        Int ->
         -- 頂点とそこへのstartからの距離
-        Array Integer Integer
+        UArray Int Int
       dijkstra graph start = runST $ do
-        dist <- newArray (bounds graph) (10 ^ 16) :: ST s (STArray s Integer Integer)
+        dist <- newArray (bounds graph) maxBound :: ST s (STArray s Int Int)
         -- スタート地点のコストは0
         writeArray dist start 0
 
