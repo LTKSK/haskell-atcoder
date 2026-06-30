@@ -1202,10 +1202,19 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+vin :: Int -> Int -> Int
+vin _ v = v
+
+vout :: Int -> Int -> Int
+vout n v = v + n
+
 buildWeightedGraph :: (Int, Int) -> UArray Int Int -> [[Int]] -> Array Int [(Int, Int)]
-buildWeightedGraph (i, n) arr uvcs = accumArray (flip (:)) [] (i, n) xs
+buildWeightedGraph (i, n) arr uvcs = accumArray (flip (:)) [] (i, n * 2) (internal ++ external)
   where
-    xs = concatMap (\[u, v, c] -> [(u, (v, c + arr ! v)), (v, (u, c + arr ! u))]) uvcs
+    -- 内部の辺
+    internal = [(vin n v, (vout n v, arr ! v)) | v <- [1 .. n]]
+    -- 外部の辺。voutから次の頂点のvinに繋ぐ
+    external = concatMap (\[u, v, c] -> [(vout n u, (vin n v, c)), (vout n v, (vin n u, c))]) uvcs
 
 main :: IO ()
 main = do
@@ -1256,5 +1265,4 @@ main = do
                     return $ H.insert (H.Entry newCost v) heap
                   else return heap
       res = dijkstra g 1
-
-  putStrLn $ unwords $ map (show . (+ as ! 1)) $ tail $ elems res
+  putStrLn $ unwords $ map show $ map (\i -> res ! vout n i) [2 .. n]
