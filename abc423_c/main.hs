@@ -1251,9 +1251,7 @@ main = do
   [n, r] <- ints
   ls <- ints
   -- 部屋がn+1個。lが1の時閉まっている。rをスタート地点として、必要な開閉回数
-  -- まずベースとして0の部屋は全部必要
-  let base = length $ filter (== 0) ls
-      -- あとはrからみた時に、0の部屋に行くまでに閉じている扉があったら2回を計上する
+  let -- rからみた時に、0の部屋に行くまでに閉じている扉があったら2回を計上する
       (lefts, rights) = splitAt r ls
       lefts' = dropWhile (== 1) lefts
       rights' = dropWhile (== 1) $ reverse rights
