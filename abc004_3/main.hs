@@ -1284,11 +1284,38 @@ main = do
   -- 2の位置21111 12345 66665 55544 44333 33222 / 21111
   -- この処理を数式に落とす。なんかキモイ周期なような...
   -- いや？この配置をぐるぐる回したらおしまいか？なにも5とかの周期で考える必要はない。25で1週なんじゃ？
-  let arr = [[1, 2, 3, 4, 5], [6, 6, 6, 6, 6], [5, 5, 5, 5, 4], [4, 4, 4, 3, 3], [3, 3, 2, 2, 2], [2, 1, 1, 1, 1]]
-      res =
-        L.sort
-          [ (arr' !! (n `mod` 30), i + 1)
-            | i <- [0 .. 5],
-              let arr' = concat $ drop (6 - i) arr ++ take (6 - i) arr
-          ]
-  putStrLn $ concat $ map (show . snd) res
+  -- let arr = [[1, 2, 3, 4, 5], [6, 6, 6, 6, 6], [5, 5, 5, 5, 4], [4, 4, 4, 3, 3], [3, 3, 2, 2, 2], [2, 1, 1, 1, 1]]
+  --     res =
+  --       L.sort
+  --         [ (arr' !! (n `mod` 30), i + 1)
+  --           | i <- [0 .. 5],
+  --             let arr' = concat $ drop (6 - i) arr ++ take (6 - i) arr
+  --         ]
+  -- putStrLn $ concat $ map (show . snd) res
+
+  let initial = [1 .. 6] :: [Int]
+      step i xs =
+        let p = i `mod` 5
+         in swapAt p (p + 1) xs
+      -- 実際に入れ替えをシミュレーション
+      swapAt p q xs =
+        [ if idx == p then xs !! q else if idx == q then xs !! p else v
+          | (idx, v) <- zip [0 ..] xs
+        ]
+
+      rotateLeft k xs = drop k xs ++ take k xs
+
+      -- n回の操作を5回で1セットと見た時のセット数
+      fullSets = n `div` 5
+      -- 1セットからはみ出る余り
+      remainder = n `mod` 5
+
+      -- 1セット(5回)で、6枚全部が1つ左に回転する。周期は6。
+      -- rotateLeftでは1が途中にいるような回転を考慮しない。123456が234561になるような
+      -- 左端の値が右端に行くまでの操作を行う
+      afterFullSets = rotateLeft (fullSets `mod` 6) initial
+
+      -- 端数(remainder回、最大4回)は素直にシミュレーション
+      final = L.foldl' (flip step) afterFullSets [0 .. remainder - 1]
+
+  putStrLn $ concatMap show final
