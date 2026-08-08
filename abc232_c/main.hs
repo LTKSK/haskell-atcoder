@@ -1246,10 +1246,12 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+-- 2つの値を64bitに畳み込む。2次元座標を
 bitOf :: Int -> Int -> Int
 bitOf i j = (i - 1) * 8 + (j - 1)
 
 toMask :: [(Int, Int)] -> Int
+-- bitはk番目だけが1
 toMask = L.foldl' (\acc (a, b) -> acc .|. bit (bitOf a b) .|. bit (bitOf b a)) 0
 
 solve :: Int -> [(Int, Int)] -> [(Int, Int)] -> Bool

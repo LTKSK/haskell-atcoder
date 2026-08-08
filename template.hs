@@ -35,6 +35,7 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Tuple
 import Data.Vector.Algorithms.Intro qualified as VAI
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
