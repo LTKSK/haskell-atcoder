@@ -207,6 +207,13 @@ sieve n = runSTUArray $ do
         writeArray arr j False
   return arr
 
+-- 試し割の素数判定
+isPrime :: Int -> Bool
+isPrime n
+  | n < 2 = False
+  | even n = False
+  | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
+
 -- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
 shakutori ::
   (a -> b -> Int -> Bool) -> -- 条件p
