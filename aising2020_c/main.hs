@@ -35,6 +35,7 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Tuple
 import Data.Vector.Algorithms.Intro qualified as VAI
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
@@ -205,6 +206,13 @@ sieve n = runSTUArray $ do
       forM_ [i * i, i * i + i .. n] $ \j ->
         writeArray arr j False
   return arr
+
+-- 試し割の素数判定
+isPrime :: Int -> Bool
+isPrime n
+  | n < 2 = False
+  | even n = False
+  | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
 
 -- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
 shakutori ::
@@ -1249,19 +1257,20 @@ modulus = 1_000_000_007
 main :: IO ()
 main = do
   [n] <- ints
+
   let f i =
         let i' = floorSqrt i
-         in if i' == 0
-              then 0
-              else
-                sum
-                  [ case S.size (S.fromList [x, y, z]) of
-                      1 -> 1
-                      2 -> 3
-                      3 -> 6
-                    | x <- [1 .. i'],
-                      y <- [x .. i'],
-                      z <- [y .. i'],
-                      (x ^ 2 + y ^ 2 + z ^ 2 + x * y + y * z + x * z) == i
-                  ]
-  mapM_ print $ map f [1 .. n]
+         in sum
+              --  x,y,zをx<=y<=zで探索し、重複はsetで見つけて種類数を計上
+              -- x^2 が、x^2+y^2...の条件式より小さいので、x^2 < 条件式 < nとなって、xは√n以下
+              [ case S.size $ S.fromList [x, y, z] of
+                  1 -> 1
+                  2 -> 3
+                  3 -> 6
+                | x <- [1 .. i'],
+                  y <- [x .. i'],
+                  z <- [y .. i'],
+                  x * x + y * y + z * z + x * y + y * z + z * x == i
+              ]
+
+  mapM_ (print . f) [1 .. n]
