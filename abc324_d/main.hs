@@ -1146,25 +1146,21 @@ main :: IO ()
 main = do
   [n] <- ints
   s <- getLine
+
   -- この手の問題はまず上界を考えるところから
   -- Sの順列は重すぎて帰ってこない
-  let sm = M.fromListWith (+) $ map (,1) s
-      slen = length s
-      -- n桁以下を全探索
-      -- n=3だったら999
-      hi = floorSqrt (10 ^ n - 1)
+  -- とりあえずsで作れる最大値を取得
+  let mx = L.foldl' (\acc c -> acc * 10 + digitToInt c) 0 $ L.sortOn Down s
+      s' = L.sort s
       res =
         length
-          [ num
-            | num <- [0 .. hi],
-              let ns = show $ num * num,
-              let nslen = length ns,
-              -- 念のため長さのチェック
-              nslen <= n,
-              let pat = slen - nslen,
-              let numMap = M.fromListWith (+) $ map (,1) $ ns ++ replicate pat '0',
-              sm == numMap
+          [ ()
+            | -- 探索範囲に気を付けましょうね。1からじゃない
+              i <- [0 .. floorSqrt mx],
+              let i' = show (i * i)
+                  len = length i'
+                  pad = replicate (n - len) '0',
+              len <= n,
+              s' == L.sort (pad ++ i')
           ]
-  print $ res
-
--- WA: numの探索を1からにしました...。[]の列挙、zipで使うから癖で1からにしちゃうの反省
+  print res
