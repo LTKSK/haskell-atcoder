@@ -211,6 +211,7 @@ sieve n = runSTUArray $ do
 isPrime :: Int -> Bool
 isPrime n
   | n < 2 = False
+  | n == 2 = True
   | even n = False
   | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
 
