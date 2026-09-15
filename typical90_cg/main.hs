@@ -798,4 +798,11 @@ main = do
               -- 制約チェック
               b <= c
           ]
+  -- let res =
+  --       [ (a, b, c)
+  --         | a <- takeWhile (\a -> a ^ 3 <= k) [1 .. k],
+  --           b <- takeWhile (\b -> a * b * b <= k) [a .. k],
+  --           let (c, r) = k `divMod` (a * b),
+  --           r == 0
+  --       ]
   print res
