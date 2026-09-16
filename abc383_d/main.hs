@@ -215,22 +215,6 @@ isPrime n
   | even n = False
   | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
 
--- 素因数分解
--- [(2,1), (3,2)]のように(指数、肩の数)の配列を返す
-primeFactors :: Int -> [(Int, Int)]
-primeFactors n = go n 2 []
-  where
-    go 1 _ acc = acc
-    go x d acc
-      -- √xまでの間にdで割り切れなかったということなのでxは素数
-      | d * d > x = (x, 1) : acc
-      -- 割り切れたらもういっちょ同じので
-      | r == 0 = go q d ((d, 1) : acc)
-      -- 割り切れなかったので次のdに進む
-      | otherwise = go x (d + 1) acc
-      where
-        (q, r) = x `divMod` d
-
 -- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
 shakutori ::
   (a -> b -> Int -> Bool) -> -- 条件p
@@ -1271,6 +1255,37 @@ printArray2D arr = do
 modulus :: Int
 modulus = 1_000_000_007
 
+-- 素因数分解
+-- [(2,1), (3,2)]のように(指数、肩の数)の配列を返す
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n = go n 2 []
+  where
+    go 1 _ acc = acc
+    go x d acc
+      -- √xまでの間にdで割り切れなかったということなのでxは素数
+      | d * d > x = (x, 1) : acc
+      -- 割り切れたらもういっちょ同じので
+      | r == 0 = go q d ((d, 1) : acc)
+      -- 割り切れなかったので次のdに進む
+      | otherwise = go x (d + 1) acc
+      where
+        (q, r) = x `divMod` d
+
 main :: IO ()
 main = do
-  print ""
+  [n] <- ints
+  -- 9になるということは実は3*3（肩が素数二つの2と2か、素数一つで8）
+  let -- 手に入った素数pの中から、^8してn以下のもの。別の素数q（p<q）を探してp^2q^2<=nになる組み合わせを計上
+      rootN = floorSqrt n
+      ps = map fst $ filter snd $ assocs $ sieve (floorSqrt n)
+      ps' = takeWhile (\p -> p ^ 8 <= n) ps
+      len = length ps'
+      res =
+        len
+          + sum
+            [ length (takeWhile (\q -> p * q <= rootN) qs)
+              | -- iを移動した時のlistを返す。p:qsで受けることで、iとi+1..のlistを取得可能
+                (p : qs) <- L.tails ps
+            ]
+
+  print res
