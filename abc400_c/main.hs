@@ -18,7 +18,7 @@ import Data.Array.Unboxed
 import Data.Bits
 import Data.Bool
 import Data.ByteString.Char8 qualified as BS
-import Data.Char (digitToInt, intToDigit, isSpace, ord)
+import Data.Char (chr, digitToInt, intToDigit, isSpace, ord)
 import Data.Coerce
 import Data.Containers.ListUtils
 import Data.Heap qualified as H
@@ -35,12 +35,13 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Tuple
 import Data.Vector.Algorithms.Intro qualified as VAI
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as VUM
 import Debug.Trace
-import Numeric (showIntAtBase)
+import Numeric (showBin, showIntAtBase)
 
 -- デバッグ用
 dbg :: (Show a) => a -> ()
@@ -111,7 +112,7 @@ intStr = do
 
 getMatInt :: Int -> Int -> IO (UArray (Int, Int) Int)
 -- concatで多次元配列を1次元配列に
-getMatInt h w = listArray ((0, 0), (h - 1, w - 1)) . concat <$> replicateM h ints
+getMatInt h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h ints
 
 getMatChar :: Int -> Int -> IO (UArray (Int, Int) Char)
 -- concatで多次元配列を1次元配列に
@@ -124,6 +125,23 @@ toBaseDigits base n = reverse $ go n
   where
     go 0 = []
     go x = (x `mod` base) : go (x `div` base)
+
+-- bit操作系
+-- 一番右に立っているbitのみが1の値を取得
+-- e.g) l=12=b1100 -> 4
+-- 2の補数表現がbit反転して+1なので、最下位のbitが1のところで桁上がりが止まり、そこだけbitが逆になる
+-- 1100 -> 0011+1 -> 0100 -> 1100 & 0100 = 0100
+lowestBit :: Int -> Int
+lowestBit l = l .&. (-l)
+
+-- n以下で最上位のbitだけを立てた値を返す
+-- e.g) n=11 -> 8
+largestPow2AtMost :: Int -> Int
+-- bit n = 2^n
+-- countLeadingZerosは、上位bitからみて連続する0の個数
+-- intだと64bitなのでcountLeadingZeros 5 は61を返す
+-- finiteBitSizeはIntだと64が帰る。n=5の時この処理は4を返す。-1しているのはbitは0basedなので
+largestPow2AtMost n = bit (finiteBitSize n - 1 - countLeadingZeros n)
 
 binSearch :: (Int -> Bool) -> Int -> Int -> Int
 binSearch f ok ng
@@ -163,6 +181,7 @@ binSearchMin f !left !right
   where
     mid = left + (right - left) `div` 2
 
+-- leftをあげる。すべてが条件を満たした場合、right-1を返すのでn個の要素がある場合はn+1にする
 binSearchMax :: (Integral t) => (t -> Bool) -> t -> t -> t
 binSearchMax f !left !right
   | right - left == 1 = left
@@ -187,6 +206,30 @@ sieve n = runSTUArray $ do
       forM_ [i * i, i * i + i .. n] $ \j ->
         writeArray arr j False
   return arr
+
+-- 試し割の素数判定
+isPrime :: Int -> Bool
+isPrime n
+  | n < 2 = False
+  | n == 2 = True
+  | even n = False
+  | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
+
+-- 素因数分解
+-- [(2,1), (3,2)]のように(指数、肩の数)の配列を返す
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n = go n 2 []
+  where
+    go 1 _ acc = acc
+    go x d acc
+      -- √xまでの間にdで割り切れなかったということなのでxは素数
+      | d * d > x = (x, 1) : acc
+      -- 割り切れたらもういっちょ同じので
+      | r == 0 = go q d ((d, 1) : acc)
+      -- 割り切れなかったので次のdに進む
+      | otherwise = go x (d + 1) acc
+      where
+        (q, r) = x `divMod` d
 
 -- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
 shakutori ::
@@ -289,6 +332,12 @@ nCr n r = fact n / (fact r * fact (n - r))
 -- combination
 comb :: Int -> Int -> Int
 comb n m = product [n - m + 1 .. n] `div` product [1 .. m]
+
+-- k個選ぶ
+combinations :: Int -> [a] -> [[a]]
+combinations 0 _ = [[]]
+combinations _ [] = []
+combinations k (x : xs) = map (x :) (combinations (k - 1) xs) ++ combinations k xs
 
 -- 引数各xについて1..xまでの要素の直積を作る
 -- rangeProduct [3,1,2]
@@ -676,6 +725,35 @@ bfs01Grid grid start goal = minimum [dist ! (fst goal, snd goal, d) | d <- [U, D
           grid ! (nr, nc) /= '#'
       ]
 
+-- dist <- newArray @IOUArray bnds ini
+-- のようなdistを要求する
+-- queueには予め開始地点を入れておこう。abc383_cに参考実装
+bfsGrid :: IOUArray (Int, Int) Int -> UArray (Int, Int) Char -> Seq.Seq (Int, Int) -> IO ()
+bfsGrid dist grid queue = case queue of
+  Seq.Empty -> return ()
+  (y, x) Seq.:<| rest -> do
+    let bnds = bounds grid
+    curDist <- readArray dist (y, x)
+    newQueue <-
+      foldM
+        ( \seq (dy, dx) -> do
+            let y' = y + dy
+                x' = x + dx
+            if inRange bnds (y', x')
+              then do
+                nextDist <- readArray dist (y', x')
+                if (nextDist == -1 && grid ! (y', x') /= '#')
+                  then do
+                    writeArray dist (y', x') (curDist + 1)
+                    return $ seq Seq.|> (y', x')
+                  else
+                    return seq
+              else return seq
+        )
+        rest
+        lrud
+    bfsGrid dist grid newQueue
+
 dijkstra ::
   -- 隣接リストのグラフ。buildWeightedGraphで作るような重み付き
   Array Int [(Int, Int)] ->
@@ -730,7 +808,8 @@ buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
 
 data UnionFind = UF
   { parent :: !(VUM.IOVector Int),
-    rank :: !(VUM.IOVector Int)
+    rank :: !(VUM.IOVector Int),
+    size :: !(VUM.IOVector Int)
   }
 
 newUf :: Int -> IO UnionFind
@@ -739,7 +818,9 @@ newUf n = do
   -- 1basedの添え字で扱いたいのでn+1。個数が増える分には問題ない
   p <- VUM.generate (n + 1) id
   r <- VUM.replicate (n + 1) 0
-  return (UF p r)
+  -- 頂点iをrootとした時のグループのサイズが入っている
+  s <- VUM.replicate (n + 1) 1
+  return (UF p r s)
 
 findUf :: UnionFind -> Int -> IO Int
 findUf uf x = do
@@ -758,24 +839,26 @@ findUf uf x = do
 
 uniteUf :: UnionFind -> Int -> Int -> IO Bool
 uniteUf uf x y = do
-  -- unionfindの同じグループかどうかの判定はrootが同じかどうかで判定される
   px <- findUf uf x
   py <- findUf uf y
-  -- 同じなら特に何もせず終了
   if px == py
     then return False
     else do
-      -- rankを読み取って、より小さい方に大きい方を繋ぐ
       rx <- VUM.read (rank uf) px
       ry <- VUM.read (rank uf) py
+      sx <- VUM.read (size uf) px
+      sy <- VUM.read (size uf) py
       case compare rx ry of
-        LT -> VUM.write (parent uf) px py
-        GT -> VUM.write (parent uf) py px
+        LT -> do
+          VUM.write (parent uf) px py
+          VUM.write (size uf) py (sx + sy) -- 親側にサイズを合算
+        GT -> do
+          VUM.write (parent uf) py px
+          VUM.write (size uf) px (sx + sy)
         EQ -> do
-          -- 同じだったら片方に繋いで、ランクを1増やす
-          -- writeは配列 index value の順に引数を受ける。parent ufが配列を返すのを忘れずに
-          VUM.write (parent uf) py px -- pyをpxに繋ぐ
-          VUM.modify (rank uf) (+ 1) px -- pxの子が増えたのでrankを+1
+          VUM.write (parent uf) py px
+          VUM.modify (rank uf) (+ 1) px
+          VUM.write (size uf) px (sx + sy)
       return True
 
 sameUf :: UnionFind -> Int -> Int -> IO Bool
@@ -784,6 +867,12 @@ sameUf uf x y = do
   px <- findUf uf x
   py <- findUf uf y
   return (px == py)
+
+-- ufに含まれる、頂点xを含むグループのサイズを得る
+sizeUf :: UnionFind -> Int -> IO Int
+sizeUf uf x = do
+  root <- findUf uf x
+  VUM.read (size uf) root
 
 -- cjpさんの https://atcoder.jp/contests/tessoku-book/submissions/69812807 を参考に
 -- Dinicグラフ
@@ -1114,6 +1203,47 @@ accumArrayDP next relax ini bnds v0s xs = do
         -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
         concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
 
+-- BITによる転倒数計上
+-- BIT更新: 位置iにvalを加算する
+-- 位置iだけでなく、iを担当範囲に含む上位ノードにも加算を伝播する
+bitUpdate :: IOUArray Int Int -> Int -> Int -> IO ()
+bitUpdate bit i val = do
+  n <- snd <$> getBounds bit
+  let go j
+        | j > n = return () -- 配列の範囲外なら終了
+        | otherwise = do
+            v <- readArray bit j
+            writeArray bit j (v + val) -- 現在のノードに加算
+            go (j + (j .&. (-j))) -- 最下位ビットを足して次の上位ノードへ
+            -- 例: j=3(0011) > +1 > j=4(0100) > +4 > j=8(1000)
+  go i
+
+-- BIT累積和: 1〜iの合計を求める
+-- 位置iから最下位ビットを引きながら、担当範囲の合計を足し集める
+bitQuery :: IOUArray Int Int -> Int -> IO Int
+bitQuery bit i = do
+  let go 0 acc = return acc
+      go j acc = do
+        v <- readArray bit j
+        -- j .&. -jで最下位の1が立っているbitが手に入る
+        go (j - (j .&. (-j))) (acc + v) -- 現在のノードの値を足して、最下位ビットを引いて次へ
+        -- 例: j=7(0111) → -1 → j=6(0110) → -2 → j=4(0100) → -4 → j=0 (終了)
+        -- bit[7]([7,7]の合計) + bit[6]([5,6]の合計) + bit[4]([1,4]の合計) = [1,7]の合計
+  go i 0
+
+-- 転倒数を求める。1-based想定。BITを使う
+inversions :: [Int] -> IO Int
+inversions xs = do
+  let maxVal = maximum xs
+  bit <- newArray (1, maxVal) 0 :: IO (IOUArray Int Int)
+  ref <- newIORef 0
+  forM_ (zip [1 ..] xs) $ \(i, x) -> do
+    cnt <- bitQuery bit maxVal
+    cntX <- bitQuery bit x
+    modifyIORef' ref (+ (cnt - cntX)) -- xより大きい要素の数が転倒数への寄与
+    bitUpdate bit x 1
+  readIORef ref
+
 -- tuple
 fst3 (a, _, _) = a
 
@@ -1143,12 +1273,14 @@ modulus = 1_000_000_007
 
 main :: IO ()
 main = do
-  [n] <- integers
-  let abounds = log2LE n
-      res =
-        sum
-          [ (bbounds + 1) `div` 2
-            | a <- [1 .. abounds],
-              let bbounds = fromIntegral $ floorSqrt (fromIntegral n `div` 2 ^ a)
-          ]
+  [n] <- ints
+  let res = floorSqrt (n `div` 2) + floorSqrt (n `div` 4)
+  -- S.size $
+  --   S.fromList
+  --     [ a' * b
+  --       | a <- takeWhile ((<= n) . (2 ^)) [1 ..],
+  --         let a' = 2 ^ a,
+  --         b <- [1 .. floorSqrt $ n `div` a']
+  --     ]
+
   print res
