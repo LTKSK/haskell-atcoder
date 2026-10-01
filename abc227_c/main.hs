@@ -35,6 +35,7 @@ import Data.Ord
 import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Tuple
 import Data.Vector.Algorithms.Intro qualified as VAI
 import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
@@ -205,6 +206,30 @@ sieve n = runSTUArray $ do
       forM_ [i * i, i * i + i .. n] $ \j ->
         writeArray arr j False
   return arr
+
+-- 試し割の素数判定
+isPrime :: Int -> Bool
+isPrime n
+  | n < 2 = False
+  | n == 2 = True
+  | even n = False
+  | otherwise = all (\x -> n `mod` x /= 0) $ takeWhile (\x -> x * x <= n) [3, 5 ..]
+
+-- 素因数分解
+-- [(2,1), (3,2)]のように(指数、肩の数)の配列を返す
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n = go n 2 []
+  where
+    go 1 _ acc = acc
+    go x d acc
+      -- √xまでの間にdで割り切れなかったということなのでxは素数
+      | d * d > x = (x, 1) : acc
+      -- 割り切れたらもういっちょ同じので
+      | r == 0 = go q d ((d, 1) : acc)
+      -- 割り切れなかったので次のdに進む
+      | otherwise = go x (d + 1) acc
+      where
+        (q, r) = x `divMod` d
 
 -- 参考: https://zenn.dev/osushi0x/articles/e5bd9fe60abee4
 shakutori ::
@@ -493,6 +518,12 @@ floorSqrt n
     go !x !x'
       | x' < x = go x' (unsafeShiftR (x' + quot n x') 1)
       | otherwise = x
+
+ceilSqrt :: Int -> Int
+ceilSqrt n =
+  let !r = floorSqrt n
+   in -- 平方数でなければ1を足す
+      if r * r == n then r else r + 1
 
 -- vectorを使った高速なsort
 fastSortU :: (VUM.Unbox a, Ord a) => VU.Vector a -> VU.Vector a
@@ -1249,11 +1280,13 @@ modulus = 1_000_000_007
 main :: IO ()
 main = do
   [n] <- ints
-  -- a舐めるだけでダメそう
-  let res =
+  -- 3乗根まで
+  -- n/a = b*c
+  let ans =
         sum
-          -- CがB<=C<=N/(A*B)なので、L<=C<=Rの中のCの個数は？と考えるとC-L+1
-          -- A^3 <= ABC <= n
-          [ n `div` (a * b) - b + 1 | a <- takeWhile (\a -> a * a * a <= n) [1 ..], b <- takeWhile (\b -> a * b * b <= n) [a ..]
+          [ c - b + 1
+            | a <- takeWhile (\a -> a ^ 3 <= n) [1 ..],
+              b <- takeWhile (\b -> b * b <= (n `div` a)) [a ..],
+              let c = n `div` (a * b)
           ]
-  print res
+  print ans

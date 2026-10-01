@@ -519,6 +519,12 @@ floorSqrt n
       | x' < x = go x' (unsafeShiftR (x' + quot n x') 1)
       | otherwise = x
 
+ceilSqrt :: Int -> Int
+ceilSqrt n =
+  let !r = floorSqrt n
+   in -- 平方数でなければ1を足す
+      if r * r == n then r else r + 1
+
 -- vectorを使った高速なsort
 fastSortU :: (VUM.Unbox a, Ord a) => VU.Vector a -> VU.Vector a
 fastSortU = VU.modify (VAI.sortBy compare)
