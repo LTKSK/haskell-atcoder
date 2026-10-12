@@ -812,6 +812,151 @@ buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
   where
     xs = concatMap (\[u, v, c] -> [(u, (v, c)), (v, (u, c))]) uvcs
 
+-- | 木に根を指定し、(親の配列, 親へ向かう辺番号の配列, BFS訪問順)を返す。
+-- 前提: 頂点番号は1以上、graphは連結な無向木で、rootはその頂点。
+-- graph ! v は [(隣接頂点, 辺番号)]。辺番号はBFS中に採番せず、そのまま保存する。
+-- parents ! root = 0、parentEdges ! root = 0（根には親への辺がない）。
+-- orderは木の形ではなく処理順を表す。親が子より先に並び、逆順なら子が先。
+-- 辺番号が不要な問題では、各辺の番号を0にしても親とorderを取得できる。
+-- 計算量: 時間O(N)、追加メモリO(N)。
+-- 使用例（以下の関数の例でも同じ木を使用）:
+--   let graph = buildWeightedGraph (1, 5)
+--         [[1,2,1], [1,3,2], [2,4,3], [2,5,4]]
+--   (parents, parentEdges, order) <- bfsParents graph 1
+--   elems parents     == [0,1,1,2,2]
+--   elems parentEdges == [0,1,2,3,4]
+--   order             == [1,3,2,5,4]
+-- 訪問順は隣接リストの並びに依存するが、親が子より先という性質は変わらない。
+bfsParents :: Array Int [(Int, Int)] -> Int -> IO (UArray Int Int, UArray Int Int, [Int])
+bfsParents graph root = do
+  parents <- newArray (bounds graph) (-1) :: IO (IOUArray Int Int)
+  parentEdges <- newArray (bounds graph) 0 :: IO (IOUArray Int Int)
+  writeArray parents root 0
+
+  let go queue revOrder =
+        case Seq.viewl queue of
+          Seq.EmptyL ->
+            pure (reverse revOrder)
+          v Seq.:< rest -> do
+            -- 隣接頂点が未訪問ならエンキュー
+            nextQueue <-
+              foldM
+                ( \q (u, edgeId) -> do
+                    p <- readArray parents u
+                    -- 未訪問判定
+                    if p == -1
+                      then do
+                        -- ここでコストではなく、到達した頂点を書き込む
+                        -- 親からたどっているので、uの親はvである
+                        writeArray parents u v
+                        -- どの辺で親に向かうか
+                        -- 頂点uから親に向かう方向のedgeの番号iを登録
+                        writeArray parentEdges u edgeId
+                        pure (q Seq.|> u)
+                      else
+                        pure q
+                )
+                rest
+                (graph ! v)
+            -- 訪問した頂点をrevOrderに積んでいく
+            go nextQueue (v : revOrder)
+  order <- go (Seq.singleton root) []
+  -- parentsには、i番目の親がjという情報が入っている
+  frozenParents <- freeze parents
+  frozenEdges <- freeze parentEdges
+  pure (frozenParents, frozenEdges, order)
+
+-- | 各頂点を根とする部分木の頂点数（自分自身も含む）を返す。
+-- 前提: parentsの根の値は0。orderは全頂点を1回ずつ含み、親が子より先。
+-- bfsParentsのparentsとorderをそのまま渡せる。
+-- 逆順に処理すると、自分の番までに子のサイズが集まるので、それを親へ足せる。
+-- 用途: 辺を切った際の両側の頂点数はsizes ! vとN - sizes ! v。
+-- 初期値1を各頂点の重みに変えれば、同じ処理で部分木の重み合計も求められる。
+-- 計算量: 時間O(N)、追加メモリO(N)。
+-- 使用例:
+--   sizes <- subtreeSizes parents order
+--   elems sizes == [5,3,1,1,1]
+--   sizes ! 2 == 3  -- 頂点2の部分木は{2,4,5}
+subtreeSizes :: UArray Int Int -> [Int] -> IO (UArray Int Int)
+subtreeSizes parents order = do
+  -- 1は自身のサイズ
+  sizes <- newArray (bounds parents) 1 :: IO (IOUArray Int Int)
+  -- orderでは親が先。reverseすると子が先になる
+  forM_ (reverse order) $ \v -> do
+    let p = parents ! v
+
+    -- 根の時は親がいないので加算しない
+    when (p /= 0) $ do
+      -- 子の分が集まった、自分の部分木サイズを取得
+      sv <- readArray sizes v
+      -- 自分の部分木サイズを親に加算
+      modifyArray' sizes p (+ sv)
+  freeze sizes
+
+makeSubtreeAdds ::
+  UArray Int Int -> -- 部分木のサイズ
+  UArray Int Int -> -- 親へ向かう辺の番号
+  IO (Int, UArray Int Int)
+makeSubtreeAdds sizes parentEdges = do
+  -- 頂点vと、その子孫全体に加える値
+  subtreeAdds <- newArray (bounds sizes) 0 :: IO (IOUArray Int Int)
+  globalRef <- newIORef (0 :: Int)
+
+  let n = rangeSize (bounds sizes)
+
+  forM_ (indices sizes) $ \v -> do
+    let edgeId = parentEdges ! v
+        s = sizes ! v
+
+    -- 根っこは処理する辺がない
+    when (edgeId /= 0) $ do
+      -- 辺edgeIdを削除した時に、vから下のサイズが大きい場合
+      if s > n - s
+        then do
+          modifyArray' subtreeAdds v (+ edgeId)
+        else do
+          -- 全体にedgeIdを足し、vに対しては引くことで帳尻を合わせる
+          -- 部分木の外側のための演算
+          modifyIORef' globalRef (+ edgeId)
+          modifyArray' subtreeAdds v (subtract edgeId)
+
+  -- 全頂点に一律で加算する値
+  globalAdd <- readIORef globalRef
+  frozenSubtreeAdds <- freeze subtreeAdds
+  pure (globalAdd, frozenSubtreeAdds)
+
+-- | 部分木への加算の印を親から子へ伝え、各頂点が受け取る加算の合計を返す。
+-- subtreeAdds ! v = a は「v自身とその子孫全員にaを加算する」という予約。負の値も可。
+-- 戻り値の各要素は、根からその頂点まで（両端を含む）のsubtreeAddsの合計になる。
+-- 前提: parentsとsubtreeAddsは同じ添字範囲、根の親は0。
+-- orderは全頂点を1回ずつ含み、親が子より先（bfsParentsの戻り値を利用できる）。
+-- 親が祖先の印を受け取ってから子へ渡すため、1回の走査で伝搬が完了する。
+-- 用途: 部分木への一括加算、根から各頂点までの頂点重みの累積和。
+-- 全頂点への一律加算はこの関数に含めず、戻り値へ別途足す。入力subtreeAddsは変更しない。
+-- 計算量: 時間O(N)、追加メモリO(N)。合計がIntの範囲に収まること。
+-- 使用例（頂点2の部分木に+10、頂点4の部分木に-3）:
+--   let subtreeAdds = listArray (1, 5) [0,10,0,-3,0] :: UArray Int Int
+--   values <- propagateSubtreeAdds parents order subtreeAdds
+--   elems values == [0,10,0,7,10]
+--   let answers = map (+ 5) (elems values)  -- さらに全頂点へ+5
+--   answers == [5,15,5,12,15]
+propagateSubtreeAdds ::
+  UArray Int Int -> -- 親
+  [Int] -> -- BFSの訪問順
+  UArray Int Int -> -- 加算の印
+  IO (UArray Int Int)
+propagateSubtreeAdds parents order subtreeAdds = do
+  values <- thaw subtreeAdds :: IO (IOUArray Int Int)
+
+  forM_ order $ \v -> do
+    let p = parents ! v
+
+    when (p /= 0) $ do
+      parentValue <- readArray values p
+      modifyArray values v (+ parentValue)
+
+  freeze values
+
 data UnionFind = UF
   { parent :: !(VUM.IOVector Int),
     rank :: !(VUM.IOVector Int),
