@@ -21,6 +21,7 @@ import Data.ByteString.Char8 qualified as BS
 import Data.Char (chr, digitToInt, intToDigit, isSpace, ord)
 import Data.Coerce
 import Data.Containers.ListUtils
+import Data.Foldable (toList)
 import Data.Heap qualified as H
 import Data.IORef
 import Data.Int (Int64)
@@ -444,6 +445,51 @@ doublingWithAccumQuery dp k v0 zero op = L.foldl' step (v0, zero) [0 .. maxK]
           let (dst, acc) = dp ! i
            in (dst ! v, total `op` (acc ! v))
       | otherwise = (v, total)
+
+-- オイラーツアー
+-- 各頂点について、入るときと出るときに番号を記録する。
+-- 例:
+--     1
+--    / \
+--   2   3
+--  / \
+-- 4   5
+-- 2探索すると:
+-- [1,2,4,4,5,5,2,3,3,1]
+-- 「vに入る位置〜vから出る位置」が、vの部分木に対応する
+eulerTour :: Array Int [Int] -> Int -> Int -> Seq.Seq Int
+eulerTour graph parent v =
+  let children = filter (/= parent) (graph ! v)
+      -- mconcatでSeqを連結
+      childTours = mconcat $ map (eulerTour graph v) children
+   in -- 両端に追加
+      v Seq.<| (childTours Seq.|> v)
+
+-- 各頂点の「入る位置・出る位置」を求める。
+-- 頂点は必ず2回登場するため、
+-- 小さい位置が入る位置、大きい位置が出る位置になる。
+tourPositions ::
+  Int ->
+  [Int] ->
+  Array Int (Int, Int) -- 頂点をkeyとして、ツアー開始位置と終了位置をtupleで持つ
+tourPositions n tour =
+  accumArray
+    combine
+    (maxBound, 0)
+    (1, n)
+    [(v, (pos, pos)) | (pos, v) <- zip [1 ..] tour]
+  where
+    -- 入力の(pos,pos)は片方使えればOK
+    combine (entry, exit) (pos, _) =
+      (min entry pos, max exit pos)
+
+-- 区間[l,r]全体にamountを足すための、差分への更新。
+--
+-- lで加算を開始し、r+1で終了する。
+-- 最後に累積和すると、区間内だけにamountが加わる。
+rangeAdd :: Int -> Int -> Int -> [(Int, Int)]
+rangeAdd l r amount =
+  [(l, amount), (r + 1, negate amount)]
 
 -- 要素の出現回数をカウントする
 -- toBucket (1, 5) [1, 2, 2, 3] => array [(1,1), (2,2), (3,1), (4,0), (5,0)]

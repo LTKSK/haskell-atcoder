@@ -21,6 +21,7 @@ import Data.ByteString.Char8 qualified as BS
 import Data.Char (chr, digitToInt, intToDigit, isSpace, ord)
 import Data.Coerce
 import Data.Containers.ListUtils
+import Data.Foldable (toList)
 import Data.Heap qualified as H
 import Data.IORef
 import Data.Int (Int64)
@@ -1415,58 +1416,130 @@ propagateSubtreeAdds parents order subtreeAdds = do
 
   forM_ order $ \v -> do
     let p = parents ! v
-
     when (p /= 0) $ do
       parentValue <- readArray values p
       modifyArray values v (+ parentValue)
-
   freeze values
+
+-- 各頂点について、入るときと出るときに番号を記録する。
+-- 例:
+--     1
+--    / \
+--   2   3
+--  / \
+-- 4   5
+-- 2探索すると:
+-- [1,2,4,4,5,5,2,3,3,1]
+-- 「vに入る位置〜vから出る位置」が、vの部分木に対応する
+eulerTour :: Array Int [Int] -> Int -> Int -> Seq.Seq Int
+eulerTour graph parent v =
+  let children = filter (/= parent) (graph ! v)
+      -- mconcatでSeqを連結
+      childTours = mconcat $ map (eulerTour graph v) children
+   in -- 両端に追加
+      v Seq.<| (childTours Seq.|> v)
+
+-- 各頂点の「入る位置・出る位置」を求める。
+-- 頂点は必ず2回登場するため、
+-- 小さい位置が入る位置、大きい位置が出る位置になる。
+tourPositions ::
+  Int ->
+  [Int] ->
+  Array Int (Int, Int) -- 頂点をkeyとして、ツアー開始位置と終了位置をtupleで持つ
+tourPositions n tour =
+  accumArray
+    combine
+    (maxBound, 0)
+    (1, n)
+    [(v, (pos, pos)) | (pos, v) <- zip [1 ..] tour]
+  where
+    -- 入力の(pos,pos)は片方使えればOK
+    combine (entry, exit) (pos, _) =
+      (min entry pos, max exit pos)
+
+-- 区間[l,r]全体にamountを足すための、差分への更新。
+--
+-- lで加算を開始し、r+1で終了する。
+-- 最後に累積和すると、区間内だけにamountが加わる。
+rangeAdd :: Int -> Int -> Int -> [(Int, Int)]
+rangeAdd l r amount =
+  [(l, amount), (r + 1, negate amount)]
+
+edgeUpdates ::
+  Int ->
+  Array Int (Int, Int) ->
+  (Int, (Int, Int)) ->
+  [(Int, Int)]
+edgeUpdates n positions (edgeId, (u, v)) =
+  -- 辺で繋がっている親子の、どっちが子かを判定する
+  -- dfsで後に入った方が子なので、positionsで大きいのが子
+  let child = if fst (positions ! u) > fst (positions ! v) then u else v
+      (entry, exit) = positions ! child
+      subtreeSize = (exit - entry + 1) `div` 2
+      outsideSize = n - subtreeSize
+   in if subtreeSize > outsideSize
+        then rangeAdd entry exit edgeId
+        else
+          -- 区間全体に追加してから、子の部分木に対して減算
+          rangeAdd 1 (2 * n) edgeId ++ rangeAdd entry exit (negate edgeId)
 
 main :: IO ()
 main = do
   [n] <- ints
   edges <- replicateM (n - 1) ints
-  let numberedEdges =
-        zipWith (\i [a, b] -> [a, b, i]) [1 ..] edges
-      graph = buildWeightedGraph (1, n) numberedEdges
+  -- let numberedEdges =
+  --       zipWith (\i [a, b] -> [a, b, i]) [1 ..] edges
+  --     graph = buildWeightedGraph (1, n) numberedEdges
+  -- (parents, parentEdges, order) <- bfsParents graph 1
+  -- -- putStrLn $ "BFS order:    " ++ show order
+  -- -- putStrLn $ "Parents:      " ++ show (elems parents)
+  -- -- putStrLn $ "Parent edges: " ++ show (elems parentEdges)
+  -- sizes <- subtreeSizes parents order
+  -- -- putStrLn $ "Sizes:     " ++ show (elems sizes)
+  -- -- forM_ [1 .. n] $ \v -> do
+  -- --   let p = parents ! v
+  -- --   when (p /= 0) $ do
+  -- --     let s = sizes ! v
+  -- --         outside = n - s
+  -- --         target =
+  -- --           if s > outside
+  -- --             then "subtree"
+  -- --             else "outside"
+  -- --     putStrLn $
+  -- --       "edge "
+  -- --         ++ show p
+  -- --         ++ "-"
+  -- --         ++ show v
+  -- --         ++ ": subtree="
+  -- --         ++ show s
+  -- --         ++ ", outside="
+  -- --         ++ show outside
+  -- --         ++ ", add to "
+  -- --         ++ target
+  -- (globalAdd, subtreeAdds) <- makeSubtreeAdds sizes parentEdges
+  -- -- putStrLn $ "Global add: " ++ show globalAdd
+  -- -- putStrLn $ "Subtree adds:      " ++ show (elems subtreeAdds)
+  -- vertexAdds <- propagateSubtreeAdds parents order subtreeAdds
+  -- -- putStrLn $ "Vertex adds: " ++ show (elems vertexAdds)
+  -- let answers = map (+ globalAdd) (elems vertexAdds)
+  -- putStrLn $ unwords (map show answers)
 
-  (parents, parentEdges, order) <- bfsParents graph 1
-
-  -- putStrLn $ "BFS order:    " ++ show order
-  -- putStrLn $ "Parents:      " ++ show (elems parents)
-  -- putStrLn $ "Parent edges: " ++ show (elems parentEdges)
-
-  sizes <- subtreeSizes parents order
-  -- putStrLn $ "Sizes:     " ++ show (elems sizes)
-
-  -- forM_ [1 .. n] $ \v -> do
-  --   let p = parents ! v
-  --   when (p /= 0) $ do
-  --     let s = sizes ! v
-  --         outside = n - s
-  --         target =
-  --           if s > outside
-  --             then "subtree"
-  --             else "outside"
-  --     putStrLn $
-  --       "edge "
-  --         ++ show p
-  --         ++ "-"
-  --         ++ show v
-  --         ++ ": subtree="
-  --         ++ show s
-  --         ++ ", outside="
-  --         ++ show outside
-  --         ++ ", add to "
-  --         ++ target
-
-  (globalAdd, subtreeAdds) <- makeSubtreeAdds sizes parentEdges
-
-  -- putStrLn $ "Global add: " ++ show globalAdd
-  -- putStrLn $ "Subtree adds:      " ++ show (elems subtreeAdds)
-
-  vertexAdds <- propagateSubtreeAdds parents order subtreeAdds
-  -- putStrLn $ "Vertex adds: " ++ show (elems vertexAdds)
-
-  let answers = map (+ globalAdd) (elems vertexAdds)
-  putStrLn $ unwords (map show answers)
+  let -- 1. 無向木の隣接リストを作る
+      graph = buildGraph (1, n) edges
+      -- 2. 頂点1を根として、木を長さ2Nの列にする
+      tour = toList $ eulerTour graph 0 1
+      -- 3. 各部分木に対応する区間を求める
+      positions = tourPositions n tour
+      -- 4. 各辺の操作を差分への更新に変換する
+      -- 問題の入力より、辺番号は入力順に付ける。DFSの探索順とは無関係。
+      updates = concatMap (edgeUpdates n positions) $ zip [1 ..] $ map (\[a, b] -> (a, b)) edges
+      -- 5. 差分をまとめる
+      -- 最後の区間を終了させる位置として、2N+1も確保する。
+      diff = accumArray @Array (+) 0 (1, 2 * n + 1) updates
+      -- 6. 累積和を取り、列の各位置への加算量を復元する
+      tourAdds =
+        listArray @Array (1, 2 * n) $ take (2 * n) $ scanl1 (+) (elems diff)
+      -- 7. 各頂点の「入る位置」の値を答えにする
+      -- 入る位置と出る位置には同じ加算量が反映されている。
+      ans = [tourAdds ! fst (positions ! v) | v <- [1 .. n]]
+  putStrLn $ unwords $ map show ans
