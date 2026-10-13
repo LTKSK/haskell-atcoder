@@ -48,6 +48,18 @@ solve hs'@(h1 : h2 : hs) = res
 main :: IO ()
 main = do
   [n] <- ints
-  hs <- ints
-  let res = solve hs
-  print res
+  hs <- listArray @UArray (1, n) <$> ints
+  let res =
+        -- i番目の足場につく時の最小コスト
+        listArray @Array
+          (1, n)
+          [ step i
+            | i <- [1 .. n]
+          ]
+      step 1 = 0
+      step 2 = abs (hs ! 2 - hs ! 1)
+      step i =
+        min
+          (res ! (i - 1) + abs (hs ! i - hs ! (i - 1)))
+          (res ! (i - 2) + abs (hs ! i - hs ! (i - 2)))
+  print $ res ! n

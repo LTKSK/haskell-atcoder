@@ -109,12 +109,14 @@ printYn = putStrLn . yn
 main :: IO ()
 main = do
   [n, k] <- ints
-  hs <- ints
-  let hs' = listArray @UArray (1, n) hs
-      dp = listArray @Array (1, n) [step i | i <- [1 .. n]]
-      step i
-        | i == 1 = 0 -- 初期値
-        -- dp i = dp v + hs v - hs i
-        | otherwise = minimum [dp ! v + abs (hs' ! v - hs' ! i) | v <- [max 1 (i - k) .. i - 1]]
+  hs <- listArray @UArray (1, n) <$> ints
+  let dp = listArray @Array (1, n) [step i | i <- [1 .. n]]
+      step 1 = 0
+      step i =
+        minimum
+          [ dp ! (i - j) + abs (hs ! (i - j) - hs ! i)
+            | j <- [1 .. k],
+              i - j >= 1
+          ]
 
   print $ dp ! n
