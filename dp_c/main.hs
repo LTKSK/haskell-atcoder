@@ -1,28 +1,60 @@
+-- !で正格評価を強制
+{-# LANGUAGE BangPatterns #-}
+-- doやcaseに渡す関数のカッコを省略できる
+{-# LANGUAGE BlockArguments #-}
+-- \case -> が書けるようになる
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -O2 -Wno-unused-top-binds -Wno-unused-imports -Wno-orphans #-}
 
-import Control.Monad (forM_, msum, replicateM, when)
+import Control.Monad
+import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.RWS (MonadState (put))
+import Control.Monad.ST
 import Data.Array (Array)
 import Data.Array.IArray
+import Data.Array.IO
 import Data.Array.ST
 import Data.Array.Unboxed
-import Data.Array.Unboxed (UArray)
 import Data.Bits
+import Data.Bool
 import Data.ByteString.Char8 qualified as BS
-import Data.Char (digitToInt, isSpace)
+import Data.Char (chr, digitToInt, intToDigit, isSpace, ord)
+import Data.Coerce
+import Data.Containers.ListUtils
+import Data.Foldable (toList)
+import Data.Heap qualified as H
+import Data.IORef
+import Data.Int (Int64)
+import Data.IntMap.Strict qualified as IM
+import Data.IntSet qualified as IS
 import Data.Ix
-import Data.List (foldl', isPrefixOf, isSuffixOf, sort, unfoldr)
+import Data.List qualified as L
+import Data.List.Split
 import Data.Map.Strict qualified as M
+import Data.Maybe
+import Data.Ord
+import Data.STRef
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
+import Data.Tuple
+import Data.Vector.Algorithms.Intro qualified as VAI
+import Data.Vector.Mutable qualified as VM
 import Data.Vector.Unboxed qualified as VU
+import Data.Vector.Unboxed.Mutable qualified as VUM
+import Debug.Trace
+import Numeric (showBin, showIntAtBase)
 
 ints :: IO [Int]
-ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
--- 数字が複数行入った時
-intsN :: Int -> IO [Int]
-intsN n = map head <$> replicateM n ints
+integers :: IO [Integer]
+integers = L.unfoldr (BS.readInteger . BS.dropWhile isSpace) <$> BS.getLine
+
+chars :: IO [Char]
+chars = filter (not . isSpace) . BS.unpack <$> BS.getLine
+
+toBinStr :: Int -> String
+toBinStr n = showIntAtBase 2 intToDigit n ""
 
 intwo =
   ints >>= \case
@@ -106,29 +138,49 @@ yn False = "No"
 printYn :: Bool -> IO ()
 printYn = putStrLn . yn
 
+accumArrayDP ::
+  ( IArray a e,
+    Ix ix,
+    Eq e,
+    Show e,
+    Show ix,
+    Show (a ix e),
+    Foldable t
+  ) =>
+  ((ix, e) -> x -> [(ix, e')]) -> -- 状態を遷移させる関数
+  (e -> e' -> e) -> -- relax
+  e -> -- 初期値。遷移が来ない時の値
+  (ix, ix) -> -- 状態空間の上界と下界
+  [(ix, e')] -> -- 開始時点の状態
+  t x -> -- 入力
+  a ix e -- 出力はArrayまたはUArray
+accumArrayDP next relax ini bnds v0s xs = do
+  let dp = accumArray relax ini bnds v0s
+   in L.foldl' transition dp xs
+  where
+    transition dp x =
+      accumArray relax ini bnds $
+        -- dpの各添え字と値に対してnextを実行。この際入力のxが第二引数になる
+        -- なのでdpの現在の状態に対して(xを選ぶ、xを選ばない)とそれぞれ決めた時の遷移が行われる
+        -- 範囲外に出ていかないように添え字をチェックしてfilterを掛ける
+        concatMap (filter (inRange (bounds dp) . fst) . (`next` x)) (assocs dp)
+
+data Activity = A | B | C deriving (Ord, Eq, Show, Ix)
+
 main :: IO ()
 main = do
   [n] <- ints
   abcs <- replicateM n ints
-  -- let abcs' = listArray @Array (1, n) [(a, b, c) | [a, b, c] <- abcs]
-  --     dp = listArray @Array ((1, 1), (n, 3)) [step i j | i <- [1 .. n], j <- [1 .. 3]]
-  --     -- 初期値たち
-  --     step :: Int -> Int -> Int
-  --     step 1 1 = let (a, _, _) = abcs' ! 1 in a
-  --     step 1 2 = let (_, b, _) = abcs' ! 1 in b
-  --     step 1 3 = let (_, _, c) = abcs' ! 1 in c
-  --     -- それぞれの遷移
-  --     step i 1 =
-  --       let (a, _, _) = abcs' ! i
-  --        in a + max (dp ! (i - 1, 2)) (dp ! (i - 1, 3))
-  --     step i 2 =
-  --       let (_, b, _) = abcs' ! i
-  --        in b + max (dp ! (i - 1, 1)) (dp ! (i - 1, 3))
-  --     step i 3 =
-  --       let (_, _, c) = abcs' ! i
-  --        in c + max (dp ! (i - 1, 1)) (dp ! (i - 1, 2))
-  -- print $ maximum [dp ! (n, 1), dp ! (n, 2), dp ! (n, 3)]
+  let dp = accumArrayDP @UArray next relax ini bnds v0s abcs
+      relax = max
+      bnds = (A, C)
+      ini = minBound
+      v0s = [(A, 0), (B, 0), (C, 0)]
+      next (activity, v) [a, b, c]
+        | v == minBound = []
+        | otherwise = case activity of
+            A -> [(B, b + v), (C, c + v)]
+            B -> [(A, a + v), (C, c + v)]
+            C -> [(B, b + v), (A, a + v)]
 
-  let dp' = foldl' step' (head abcs) (tail abcs)
-      step' [pa, pb, pc] [a, b, c] = [a + max pb pc, b + max pa pc, c + max pa pb]
-  print $ maximum dp'
+  print $ maximum [dp ! A, dp ! B, dp ! C]
