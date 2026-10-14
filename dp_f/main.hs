@@ -1478,18 +1478,34 @@ main = do
       tlen = length t
       s' = listArray @UArray (1, slen) s
       t' = listArray @UArray (1, tlen) t
-      dp =
-        listArray @Array ((0, 0), (slen, tlen)) $
-          [ step i j | i <- [0 .. slen], j <- [0 .. tlen]
-          ]
-      step 0 j = 0
-      step i 0 = 0
-      step i j
-        -- 同じだったら斜め前の値を取得
-        | s' ! i == t' ! j = dp ! (i - 1, j - 1) + 1
-        | otherwise =
-            -- それ以外は上と左のより長い部分列があるほうを採用
-            max (dp ! (i - 1, j)) (dp ! (i, j - 1))
+      dp = runSTUArray $ do
+        arr <- newArray ((0, 0), (slen, tlen)) (0 :: Int)
+
+        forM_ [1 .. slen] $ \i -> do
+          forM_ [1 .. tlen] $ \j -> do
+            v <-
+              if s' ! i == t' ! j
+                then do
+                  d <- readArray arr (i - 1, j - 1)
+                  pure $ d + 1
+                else do
+                  u <- readArray arr (i - 1, j)
+                  l <- readArray arr (i, j - 1)
+                  pure $ max u l
+            writeArray arr (i, j) v
+        pure arr
+
+      --   listArray @Array ((0, 0), (slen, tlen)) $
+      --     [ step i j | i <- [0 .. slen], j <- [0 .. tlen]
+      --     ]
+      -- step 0 j = 0
+      -- step i 0 = 0
+      -- step i j
+      --   -- 同じだったら斜め前の値を取得
+      --   | s' ! i == t' ! j = dp ! (i - 1, j - 1) + 1
+      --   | otherwise =
+      --       -- それ以外は上と左のより長い部分列があるほうを採用
+      --       max (dp ! (i - 1, j)) (dp ! (i, j - 1))
 
       restore 0 j acc = acc
       restore i 0 acc = acc
