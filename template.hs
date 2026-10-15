@@ -853,10 +853,45 @@ buildGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
     -- accumArrayはtupleのfstをindexとして、値にtupleのsndを使う。同じindexに複数の値がある時、accumArrayの第一引数で結合する
     xs = concatMap (\[u, v] -> [(u, v), (v, u)]) uvs
 
+-- 有向グラフを作るだ
+buildDirectedGraph :: (Int, Int) -> [[Int]] -> Array Int [Int]
+-- flipは関数の引数の順序を入れ替える。x:xsは第一引数を二つ目の配列の先頭に追加する演算子
+buildDirectedGraph (i, n) uvs = accumArray (flip (:)) [] (i, n) xs
+  where
+    xs = map (\[u, v] -> (u, v)) uvs
+
 buildWeightedGraph :: (Int, Int) -> [[Int]] -> Array Int [(Int, Int)]
 buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
   where
     xs = concatMap (\[u, v, c] -> [(u, (v, c)), (v, (u, c))]) uvcs
+
+longestPath :: Int -> Array Int [Int] -> [Int] -> [Int] -> Int
+longestPath n graph indegrees starts = runST $ do
+  deg <- newListArray (1, n) indegrees :: ST s (STUArray s Int Int)
+  dp <- newArray (1, n) 0 :: ST s (STUArray s Int Int)
+
+  let go Seq.Empty = do
+        values <- getElems dp
+        pure $ maximum values
+      go (u Seq.:<| queue) = do
+        du <- readArray dp u
+        queue' <-
+          foldM
+            ( \q v -> do
+                dv <- readArray dp v
+                -- ここがrelax相当の処理
+                writeArray dp v (max dv (du + 1))
+                d <- readArray deg v
+                writeArray deg v (d - 1)
+                -- 入次数が0になったらenqueue
+                -- これはvに繋がっているnodeがすべて処理されてから次に進むことで、dpの遷移を成立させるため
+                -- これがトポロジカルソート相当の処理になっている
+                pure $ if d == 1 then q Seq.|> v else q
+            )
+            queue
+            (graph ! u)
+        go queue'
+  go (Seq.fromList starts)
 
 -- | 木に根を指定し、(親の配列, 親へ向かう辺番号の配列, BFS訪問順)を返す。
 -- 前提: 頂点番号は1以上、graphは連結な無向木で、rootはその頂点。
