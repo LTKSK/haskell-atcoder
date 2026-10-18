@@ -1,3 +1,4 @@
+-- https://github.com/LTKSK/haskell-atcoder/blob/main/template.hs
 -- !で正格評価を強制
 {-# LANGUAGE BangPatterns #-}
 -- doやcaseに渡す関数のカッコを省略できる
@@ -50,6 +51,9 @@ dbg = (`traceShow` ())
 
 ints :: IO [Int]
 ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+floats :: IO [Float]
+floats = map (read . BS.unpack) . BS.words <$> BS.getLine
 
 integers :: IO [Integer]
 integers = L.unfoldr (BS.readInteger . BS.dropWhile isSpace) <$> BS.getLine
