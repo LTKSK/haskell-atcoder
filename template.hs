@@ -869,6 +869,11 @@ buildWeightedGraph (i, n) uvcs = accumArray (flip (:)) [] (i, n) xs
   where
     xs = concatMap (\[u, v, c] -> [(u, (v, c)), (v, (u, c))]) uvcs
 
+buildDirectedWeightedGraph :: (Int, Int) -> [[Int]] -> Array Int [(Int, Int)]
+buildDirectedWeightedGraph bnds uvcs =
+  accumArray (flip (:)) [] bnds $
+    map (\[u, v, c] -> (u, (v, c))) uvcs
+
 longestPath :: Int -> Array Int [Int] -> [Int] -> [Int] -> Int
 longestPath n graph indegrees starts = runST $ do
   deg <- newListArray (1, n) indegrees :: ST s (STUArray s Int Int)
@@ -950,6 +955,24 @@ bfsParents graph root = do
   frozenParents <- freeze parents
   frozenEdges <- freeze parentEdges
   pure (frozenParents, frozenEdges, order)
+
+-- start を根として bfsParents で作った親配列を使い、
+-- start → … → goal の順に頂点を返す。
+-- 前提：goal は start から到達できる頂点。
+-- MEMO: 使用例
+-- (parents, _, _) <- bfsParents g start
+-- let path = restorePath parents start goal
+restorePath :: UArray Int Int -> Int -> Int -> [Int]
+restorePath parents start goal = go goal []
+  where
+    -- current : 現在、親をたどっている頂点
+    -- path    : current の次の頂点から goal までのパス
+    go current path
+      -- 開始頂点まで戻ったら、先頭に start を加えて完成。
+      | current == start = start : path
+      -- 現在の頂点を先頭に加え、親へ移動する。
+      | otherwise =
+          go (parents ! current) (current : path)
 
 -- | 各頂点を根とする部分木の頂点数（自分自身も含む）を返す。
 -- 前提: parentsの根の値は0。orderは全頂点を1回ずつ含み、親が子より先。
