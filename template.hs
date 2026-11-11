@@ -55,6 +55,9 @@ ints = L.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 floats :: IO [Float]
 floats = map (read . BS.unpack) . BS.words <$> BS.getLine
 
+doubles :: IO [Double]
+doubles = map (read . BS.unpack) . BS.words <$> BS.getLine
+
 integers :: IO [Integer]
 integers = L.unfoldr (BS.readInteger . BS.dropWhile isSpace) <$> BS.getLine
 
